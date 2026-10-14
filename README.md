@@ -30,3 +30,4 @@ Não habilite GitHub Pages para este repositório privado sem entender a visibil
 - `api`: feed WebSocket autenticado.
 - `alerts`: Telegram ou Web Push com supressão de duplicados.
 - `ai`: análise opcional de eventos estruturados (nunca por tick).
+Versão demo 1.0
