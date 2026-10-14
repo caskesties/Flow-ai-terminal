@@ -1,47 +1,24 @@
 'use strict';
-// Protótipo de interface. Dados 100% artificiais; lógica sem validade operacional.
-const $ = id => document.getElementById(id);
-const fmt = n => Math.round(n).toLocaleString('pt-BR');
-let timer=null, price=145000, history=[], previousState='', alerts=[];
-function render(){
-  const recent=history.slice(-30);let buys=0,sells=0;
-  for(const t of recent){if(t.side==='buy')buys+=t.qty;else sells+=t.qty;}
-  const volume=buys+sells,delta=buys-sells;
-  const ratio=volume?Math.abs(delta)/volume:0;
-  const strength=Math.min(100,Math.round(ratio*110));
-  const dir=delta>0?'COMPRA':'VENDA';
-  const bias=strength>=45?(delta>0?'Comprador':'Vendedor'):'Neutro';
-  $('price').textContent=fmt(price);$('delta').textContent=(delta>0?'+':'')+fmt(delta);$('volume').textContent=fmt(volume);
-  $('delta').className=delta>0?'up':delta<0?'down':'';$('bias').textContent=bias;$('strength').textContent=strength+'/100';
-  $('fill').style.width=strength+'%';$('fill').style.background=delta>=0?'#25bd8a':'#f57c7c';
-  $('evidence').textContent=`Janela fictícia: ${recent.length} eventos; ${fmt(buys)} contratos em compras agressivas e ${fmt(sells)} em vendas agressivas.`;
-  // Regras para demonstrar transições de estado, NÃO regras de negociação reais.
-  const stage=recent.length<15?'':strength>=70?'confirmado':strength>=45?'antecipado':'';
-  const state=stage?`${dir}:${stage}`:'';
-  if(state&&state!==previousState){
-    const detail=stage==='antecipado'?'Pressão direcional emergente (simulada).':'Sinal confirmado por limiar ilustrativo, não validado.';
-    const element=document.createElement('div');element.className='event '+(stage==='confirmado'?'confirmed ':'')+(dir==='VENDA'?'sell':'');
-    const bold=document.createElement('strong');bold.textContent=`${stage==='confirmado'?'SINAL':'ATENÇÃO'} • ${dir} • DEMO`;element.appendChild(bold);
-    const desc=document.createElement('p');desc.textContent=detail;element.appendChild(desc);
-    const time=document.createElement('small');time.textContent=new Date().toLocaleTimeString('pt-BR')+' • preço fictício '+fmt(price);element.appendChild(time);
-    if($('events').textContent==='Ainda não há alertas.')$('events').textContent='';
-    $('events').prepend(element);alerts.push({stage,dir,price,at:new Date().toISOString()});
-  }
-  previousState=state;
+// Demo sintética determinística. NÃO conectar regras a ordens reais sem validação independente.
+const $=id=>document.getElementById(id);
+const format=n=>Math.round(n).toLocaleString('pt-BR');
+const KEY='flow-ai-v2-demo-history';
+let records=[];try{records=JSON.parse(localStorage.getItem(KEY)||'[]');if(!Array.isArray(records))records=[];}catch{records=[];}
+let timer=null,seed=12411,step=0,price=145000,ticks=[],prevState='',liveSide=null,lastAlertStep=-100;
+function rand(){seed=(Math.imul(1664525,seed)+1013904223)>>>0;return seed/4294967296;}
+function addLog(type,side,score){const item={time:new Date().toISOString(),type,side,price,score,scenario:$('scenario').value};records.unshift(item);records=records.slice(0,200);try{localStorage.setItem(KEY,JSON.stringify(records));}catch{};renderLogs();const el=document.createElement('div');el.className='event '+(type==='CONFIRMADO'?'confirmed':type==='INVALIDADO'?'invalidated':'')+(side==='VENDA'?' sell':'');const b=document.createElement('b');b.textContent=`${type} · ${side} · DEMO`;const p=document.createElement('p');p.className='small';p.textContent=type==='ANTECIPADO'?'Fluxo emergente fictício; aguardando confirmação de preço.':type==='CONFIRMADO'?'Condições artificiais de delta, velocidade e preço atendidas. NÃO OPERAR.':'Condição artificial anterior perdeu sustentação.';const s=document.createElement('small');s.textContent=`${new Date(item.time).toLocaleTimeString('pt-BR')} · ${format(price)} · score ${score}/100`;el.append(b,p,s);if($('events').textContent==='Nenhum alerta até agora.')$('events').textContent='';$('events').prepend(el);while($('events').children.length>25)$('events').lastChild.remove();}
+function renderLogs(){$('history').replaceChildren();if(!records.length){const tr=document.createElement('tr');const td=document.createElement('td');td.colSpan=5;td.textContent='Sem registros.';tr.append(td);$('history').append(tr);return;}for(const r of records.slice(0,35)){const tr=document.createElement('tr');[new Date(r.time).toLocaleTimeString('pt-BR'),r.type,r.side,format(r.price),String(r.score)].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.append(td);});$('history').append(tr);}}
+function calculate(){const recent=ticks.slice(-75);let buy=0,sell=0;for(const t of recent){if(t.side==='buy')buy+=t.qty;else sell+=t.qty;}const vol=buy+sell,delta=buy-sell,imb=vol?Math.abs(delta)/vol:0;const side=delta>0?'COMPRA':delta<0?'VENDA':'NEUTRO';const baseline=30;const velocity=recent.length?recent.reduce((s,t)=>s+t.qty,0)/recent.length/baseline:0;const displacement=recent.length>1?price-recent[0].price:0;const aligned=side!=='NEUTRO'&&Math.sign(displacement)===(side==='COMPRA'?1:-1);const movePts=Math.abs(displacement);const momentum=recent.length>=20?Math.abs(price-recent[Math.max(0,recent.length-18)].price):0;let score=Math.round(Math.min(30,imb*40)+Math.min(20,Math.max(0,velocity-0.7)*18)+(aligned?Math.min(35,movePts/2.7):0)+(aligned?Math.min(15,momentum/3):0));if(!aligned||movePts<10)score=Math.min(score,44);const eligible=recent.length>=24&&side!=='NEUTRO'&&aligned;let stage=eligible&&recent.length>=35&&score>=75&&velocity>=1.3&&movePts>=35?'CONFIRMADO':eligible&&score>=45?'ANTECIPADO':'OBSERVAÇÃO';$('price').textContent=format(price);$('delta').textContent=(delta>0?'+':'')+format(delta);$('delta').className=delta>0?'up':delta<0?'down':'';$('volume').textContent=format(vol);$('ratio').textContent=(vol?Math.round(delta/vol*100):0)+'%';$('velocity').textContent=velocity.toFixed(1).replace('.',',')+'×';$('move').textContent=(displacement>0?'+':'')+format(displacement)+' pts';$('bias').textContent=side==='NEUTRO'?'Neutro':side==='COMPRA'?'Viés comprador':'Viés vendedor';$('strength').textContent=score+'/100';$('fill').style.width=score+'%';$('fill').style.background=side==='VENDA'?'#ef8080':'#4bbf91';$('stage').textContent=stage;$('evidence').textContent=`${recent.length} eventos artificiais · ${format(buy)} compras / ${format(sell)} vendas agressivas · deslocamento ${aligned?'alinhado':'não alinhado'} com delta.`;
+const state=stage==='OBSERVAÇÃO'?'':side+':'+stage;if(liveSide&&(!state||side!==liveSide)){if(step-lastAlertStep>=6){addLog('INVALIDADO',liveSide,score);lastAlertStep=step;}liveSide=null;}
+if(stage!=='OBSERVAÇÃO'&&state!==prevState&&step-lastAlertStep>=6){addLog(stage,side,score);lastAlertStep=step;liveSide=side;}prevState=state;
 }
-function tick(){
-  // tendência alternada apenas para tornar as telas e os dois sentidos observáveis.
-  const phase=Math.floor(history.length/55)%4;
-  const desired=phase===0||phase===3?'buy':'sell';
-  const side=Math.random()<0.74?desired:(desired==='buy'?'sell':'buy');
-  const qty=10+Math.floor(Math.random()*75);
-  const move=(side==='buy'?1:-1)*(Math.random()<0.66?5:0);
-  price+=move;history.push({side,qty,price,t:Date.now()});
-  if(history.length>2000)history=history.slice(-500);
-  render();
-}
-$('start').addEventListener('click',()=>{if(timer)return;timer=setInterval(tick,380);$('start').disabled=true;$('stop').disabled=false;$('status').textContent='Simulação ativa';});
-$('stop').addEventListener('click',()=>{clearInterval(timer);timer=null;$('start').disabled=false;$('stop').disabled=true;$('status').textContent='Pausado';});
-$('reset').addEventListener('click',()=>{clearInterval(timer);timer=null;price=145000;history=[];previousState='';alerts=[];$('events').textContent='Ainda não há alertas.';$('start').disabled=false;$('stop').disabled=true;$('status').textContent='Parado';render();});
-if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
-render();
+function tick(){step++;const scenario=$('scenario').value;let side,qty,change;const roll=rand();if(scenario==='buy'){side=roll<.86?'buy':'sell';qty=35+Math.floor(rand()*65);change=side==='buy'?(rand()<.8?10:5):(rand()<.5?-5:0);}else if(scenario==='sell'){side=roll<.86?'sell':'buy';qty=35+Math.floor(rand()*65);change=side==='sell'?(rand()<.8?-10:-5):(rand()<.5?5:0);}else if(scenario==='absorb'){side=roll<.89?'buy':'sell';qty=45+Math.floor(rand()*80);change=rand()<.85?0:(rand()<.5?5:-5);}else{side=roll<.5?'buy':'sell';qty=15+Math.floor(rand()*30);change=rand()<.48?(side==='buy'?5:-5):0;}price+=change;ticks.push({side,qty,price});if(ticks.length>200)ticks=ticks.slice(-75);calculate();}
+function pause(){if(timer)clearInterval(timer);timer=null;$('start').disabled=false;$('stop').disabled=true;$('status').textContent='Pausado';}
+$('start').onclick=()=>{if(timer)return;$('status').textContent='Simulação ativa';$('start').disabled=true;$('stop').disabled=false;timer=setInterval(tick,250);};
+$('stop').onclick=pause;
+$('reset').onclick=()=>{pause();seed=12411;step=0;price=145000;ticks=[];prevState='';liveSide=null;lastAlertStep=-100;$('events').textContent='Nenhum alerta até agora.';$('status').textContent='Parado';calculate();};
+$('scenario').onchange=()=>{$('reset').click();};
+$('clear').onclick=()=>{if(!confirm('Apagar o histórico de sinais DEMO deste aparelho?'))return;records=[];try{localStorage.removeItem(KEY);}catch{}renderLogs();};
+$('export').onclick=()=>{const rows=[['horario_utc','tipo','direcao','preco_ficticio','score','cenario'],...records.map(x=>[x.time,x.type,x.side,x.price,x.score,x.scenario])];const csv=rows.map(row=>row.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(';')).join('\r\n');const url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='flow-ai-terminal-demo-historico.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+renderLogs();calculate();
