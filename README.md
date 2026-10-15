@@ -14,3 +14,6 @@ Substitua `index.html`, `app.js`, `sw.js`, `README.md` na raiz do repositório e
 
 ## Aviso
 Nenhum sinal é válido para negociação. O motor usa cenários inventados e regras não calibradas. Para produção: contrato/licença de dados, coleta confiável, teste fora da amostra, custos, slippage, latência, controles operacionais e revisão de segurança.
+
+## Módulo de ouro futuro
+O painel experimental de GC/MGC está em [`gold.html`](./gold.html). Permite DEMO, reprodução CSV e conexão WebSocket a um servidor autorizado, sem envio de ordens. Os alertas não foram validados para negociação.
