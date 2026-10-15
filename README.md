@@ -10,3 +10,6 @@ DEMO usa dados inventados; CSV de negócios exige timestamp,price,size,side,symb
 
 ## Limitações
 Não há IA treinada nem conectividade efetiva a dados CME, B3, NinjaTrader ou Profit. Não é possível identificar nominalmente bancos, ICEBERG ou spoofing a partir de negócios públicos. Score não é taxa de acerto. Requer licenças e servidor, validação histórica fora da amostra, latência, deduplicação, slippage e custos; não executa ordens. No iPhone WebSocket pode suspender em background.
+
+## Filtro DI1 e pressão anormal
+WIN: feed WSS aceita, além de trades, `{ "symbol":"DI1-...", "timestamp":"2026-10-15T18:00:00Z", "rate":13.25 }` (taxa percentual anual; especificar vencimento consistente). DI1 precisa estar fresco (<3 s) e mudar na direção contrária do WIN em janela de 5s por pelo menos 0,005 ponto percentual; a relação inversa é hipótese e falha em certos regimes. Volume da última janela de 1s comparado à média de 12 segundos anteriores (mínimo 8 janelas com negócios), gatilho >=1,8× e predominância >=55%. Pré-alerta experimental em milissegundos após chegada da mensagem, com objetivo de antecipar 2–3s, mas sem garantia de antecedência ou acerto. Sem DI1, não há pré-alerta WIN por confluência nem confirmação WIN. A simulação DI1 é inteiramente fictícia. CSV de trades isolados NÃO contém DI1, logo não pode satisfazer esse filtro.
