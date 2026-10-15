@@ -1,19 +1,12 @@
-# Flow AI Terminal v2 — DEMO
+# Flow AI Terminal v3
 
-Protótipo 100% sintético para o WIN, sem conexão com B3, Nelogica, OpenAI, corretoras ou ordens de negociação.
+Painel móvel de fluxo experimental para WIN, GC e MGC. Barra verde compradora à esquerda e vermelha vendedora à direita; leitura por 1, 5, 15, 30 minutos e dia (janelas parciais sinalizadas); delta, volume, negócios/s e score de regras.
 
-## Funcionalidades
-- Quatro cenários sintéticos reproduzíveis: pressão compradora, vendedora, absorção e lateralidade.
-- Janela de até 75 eventos artificiais; delta, volume, velocidade, deslocamento, score experimental.
-- Estados: observação, antecipado, confirmado e invalidado.
-- Histórico local com exportação CSV.
-- PWA com cache versionado, atualização online e abertura pelo ícone do iPhone.
+## Estratégia experimental
+Monitoramento configurável do nível 132.480 no WIN, pré-alerta de agressão, confirmação por deslocamento e rompimento, alerta de falso rompimento e invalidação. Stop ilustrativo com bloqueio quando superior a 200 pontos WIN; alvos WIN ilustrativos 300/400 pontos. Para GC/MGC as unidades são diferentes; não se aplicam os 200 pontos do WIN.
 
-## Atualizar GitHub Pages
-Substitua `index.html`, `app.js`, `sw.js`, `README.md` na raiz do repositório existente. Conserve a pasta `.github/workflows/static.yml`. Commit na branch `main`. Aguarde GitHub Actions verde, feche e reabra o app. Pode ser necessário atualizar a página no Safari para renovar o cache.
+## Fontes
+DEMO usa dados inventados; CSV de negócios exige timestamp,price,size,side,symbol. Replay é acelerado e não é backtest fiel. WSS recebe JSON equivalente de servidor privado autorizado, sem credenciais no navegador. GC e MGC são fluxos próprios. Módulo anterior gold.html preservado.
 
-## Aviso
-Nenhum sinal é válido para negociação. O motor usa cenários inventados e regras não calibradas. Para produção: contrato/licença de dados, coleta confiável, teste fora da amostra, custos, slippage, latência, controles operacionais e revisão de segurança.
-
-## Módulo de ouro futuro
-O painel experimental de GC/MGC está em [`gold.html`](./gold.html). Permite DEMO, reprodução CSV e conexão WebSocket a um servidor autorizado, sem envio de ordens. Os alertas não foram validados para negociação.
+## Limitações
+Não há IA treinada nem conectividade efetiva a dados CME, B3, NinjaTrader ou Profit. Não é possível identificar nominalmente bancos, ICEBERG ou spoofing a partir de negócios públicos. Score não é taxa de acerto. Requer licenças e servidor, validação histórica fora da amostra, latência, deduplicação, slippage e custos; não executa ordens. No iPhone WebSocket pode suspender em background.
