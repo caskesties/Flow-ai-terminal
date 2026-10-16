@@ -29,3 +29,13 @@ Registrar sinais, estado do feed, horário, preços, latência, risco e moviment
 
 ## Detector de absorção (experimental)
 No painel principal aparece uma região baseada em 12 segundos de negócios: agressão líquida relevante (>48% do volume), volume mínimo de 100 contratos, baixo deslocamento (até 3 ticks) e pelo menos quatro negócios na extremidade testada. Uma região tem bordas de ±1 tick, é exibida enquanto permanece ativa e marcada como rompida quando o preço ultrapassa uma borda com um tick adicional. O rompimento gera alerta **sem recomendar entrada**, aguardando confirmação de fluxo/DI1/risco. Todos os limiares são ilustrativos e exigem calibração para cada mercado. Sem livro de ofertas não é possível afirmar absorção institucional real, nem inferir ordens ocultas ou identidade de participantes. Não reutilizar os exemplos DEMO como evidência de desempenho.
+
+
+## NQ / MNQ — preparação para execução manual (outubro 2026)
+- NQ e MNQ aparecem como instrumentos. NQ é a referência pretendida para análise de fluxo, e MNQ representa a execução **manual** na NinjaTrader. No seletor MNQ, o WSS também se inscreve em NQ; o backend precisará mapear vencimentos corretamente.
+- Adicionada estrutura experimental para ES, US02Y, US10Y, DXY e VIX; os feeds de taxas/índices não estão integrados à Massive. Não converter preço dos futuros de Treasury diretamente em yield sem fórmula, contrato e convenções validados.
+- Duas divergências macro com dados recentes podem vetar nova confirmação; ausência de feed **não** constitui confirmação. Janela, direção e limiares ainda são heurísticos, sem validação estatística.
+- MNQ: tick de 0,25 ponto = US$ 0,50; US$ 2 por ponto por contrato. O formulário de quantidade de contratos e stop diário é apenas planejamento. Nenhum limite é imposto na conta e não há envio de ordens.
+- **Automação futura DESATIVADA**: não existem chaves da NinjaTrader, roteador de ordens, OCO, reconciliação ou fiscalização de risco diário. Nunca considerar o painel como execução automatizada.
+- A interface atual não autentica diretamente na Massive; requer gateway seguro que normalize os eventos T/Q, classifique agressão a partir de trades+quotes, deduplique e mantenha instrumentos/vencimentos sincronizados. Não usar o delta de negócios cujo lado não foi classificado.
+- Antes de operar: validar a disponibilidade real dos símbolos, fees e licença, qualidade e latência, horários, rollover, risco por contrato, custos/slippage, históricos fora da amostra e testes de replay.
