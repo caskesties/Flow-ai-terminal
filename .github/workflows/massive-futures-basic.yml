@@ -1,0 +1,42 @@
+name: Massive Futures Basic connectivity
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+    steps:
+      - name: Verify credential is configured
+        run: |
+          if [ -z "$MASSIVE_API_KEY" ]; then
+            echo "::error::Configure repository secret MASSIVE_API_KEY before running."
+            exit 1
+          fi
+      - name: Test authenticated futures products endpoint
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+          url = "https://api.massive.com/futures/v1/products?limit=1"
+          request = urllib.request.Request(
+              url, headers={"Authorization": "Bearer " + os.environ["MASSIVE_API_KEY"], "Accept": "application/json"}
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  data = json.load(response)
+                  print("Massive Futures API: HTTP", response.status)
+                  print("Response status:", str(data.get("status", "not supplied"))[:80])
+                  print("Products response:", "results" in data)
+          except urllib.error.HTTPError as exc:
+              print("Massive Futures API: HTTP", exc.code)
+              raise SystemExit(1)
+          except Exception as exc:
+              print("Connectivity test failed:", type(exc).__name__)
+              raise SystemExit(1)
+          PY
