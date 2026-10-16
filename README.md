@@ -19,3 +19,10 @@ Painel de preço teórico, quantidade teórica, desequilíbrio de ofertas e hip�
 
 ## Validação de desempenho (pendente)
 Registrar sinais, estado do feed, horário, preços, latência, risco e movimento futuro por horizonte; separar testes de ajuste e testes fora da amostra. Medir falsos positivos, taxa de acerto, drawdown, custos e slippage antes de classificar qualquer estratégia como confiável.
+
+## Melhorias anti-falso-sinal (outubro 2026)
+- Sem implementar módulo de leilão nesta etapa.
+- Requer sincronia WIN-DI1 de até 1500 ms e DI1 recente; dados ausentes bloqueiam confluência.
+- Requer volume >=60 e velocidade >=2 negócios/s na janela de 60s, evita lacunas >2s, rejeita duplicatas quando o fornecedor disponibiliza `trade_id`/`id`. Limites são provisórios e exigem calibração; dados sem id ainda dependem de deduplicação no backend.
+- Pressão fora do normal é estimada por comparação com 12s anteriores; **comparação com sessões anteriores no mesmo horário ainda não é possível** sem base histórica persistente. Esse mecanismo não deve ser anunciado como sazonalidade validada.
+- Registra alertas em localStorage e movimento bruto após 5s/30s em modo demo/WSS enquanto a tela está aberta. Não é backtest, não calcula taxa de acerto confiável e não funciona em background.
