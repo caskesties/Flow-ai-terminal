@@ -4,6 +4,7 @@ import csv
 import os
 import pathlib
 import statistics
+import time
 from datetime import date, timedelta
 from massive_historical_research import download
 from validate_massive import candidates, nonoverlapping, PARAMETERS, HORIZON
@@ -12,6 +13,7 @@ OUT = pathlib.Path("reports/massive_30")
 OUT.mkdir(parents=True, exist_ok=True)
 TARGET = 30
 MAX_WEEKDAYS = 55
+REQUEST_INTERVAL_SECONDS = 15  # Conservative pacing; adjust to documented plan limits
 
 def metrics(moves):
     if not moves:
@@ -42,12 +44,17 @@ def main():
         "Train/holdout split by COMPLETE historical sessions. Signal outcomes use later candle CLOSES, not fills.",
         "No fees, slippage, stop, order book, trade direction, or profit claims.", ""]
     failed = False
+    rate_limited = False
+    last_request_at = None
     for symbol in symbols:
         sessions = {}
         errors = []
         for day in dates:
-            if len(sessions) >= TARGET:
+            if len(sessions) >= TARGET or rate_limited:
                 break
+            if last_request_at is not None:
+                time.sleep(max(0, REQUEST_INTERVAL_SECONDS - (time.monotonic() - last_request_at)))
+            last_request_at = time.monotonic()
             try:
                 bars = download(symbol, day, api_key)
                 sessions[day] = [
@@ -56,6 +63,10 @@ def main():
                     for b in bars]
             except Exception as exc:
                 errors.append(f"{day}: {str(exc)[:130]}")
+                if "HTTP 429" in str(exc):
+                    rate_limited = True
+                    lines += ["API returned HTTP 429. Stopped further requests to protect quota; retry later after checking plan limits."]
+                    break
         ordered = sorted(sessions)
         lines += [f"## {symbol}", "", f"Usable sessions: {len(ordered)}/{TARGET}; skipped/failed: {len(errors)}."]
         if errors:
