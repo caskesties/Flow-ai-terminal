@@ -1,8 +1,8 @@
 {
-  "name": "Flow AI Terminal v2 (Demonstração)",
-  "short_name": "Flow AI DEMO",
-  "description": "Simulador experimental de fluxo WIN, sem dados reais",
-  "start_url": "./",
+  "name": "Flow AI Terminal v3",
+  "short_name": "Flow AI",
+  "description": "Painel experimental de fluxo e confluência WIN/DI1, GC e MGC",
+  "start_url": "./?v=3-layout2",
   "scope": "./",
   "display": "standalone",
   "background_color": "#080e19",
