@@ -1,0 +1,35 @@
+name: Massive historical research
+on:
+  workflow_dispatch:
+    inputs:
+      day:
+        description: "UTC date YYYY-MM-DD (must be older than data delay)"
+        required: true
+        default: "2026-10-13"
+        type: string
+      contracts:
+        description: "Up to 2 dated futures tickers, comma-separated"
+        required: true
+        default: "GCZ6,MGCZ6"
+        type: string
+permissions:
+  contents: read
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      RESEARCH_DAY: ${{ inputs.day }}
+      RESEARCH_TICKERS: ${{ inputs.contracts }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/massive_historical_research.py
+      - name: Attach report for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: massive-historical-report
+          path: reports/massive/
+          if-no-files-found: warn
+          retention-days: 7
