@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from validate_massive import candidates, nonoverlapping, contiguous, validate
+from massive_historical_research import evaluate
 
 def bars(count=90, gap=None):
     base = datetime(2026, 10, 13, tzinfo=timezone.utc)
@@ -44,6 +45,14 @@ class ValidationTests(unittest.TestCase):
         sample[40]["volume"] = 100.
         indices = [i for i, _ in candidates(sample, 1.5, 20, 0, 85)]
         self.assertNotIn(40, indices)
+
+    def test_baseline_skips_gaps(self):
+        sample = bars(gap=43)
+        sample[40]["close"] = 106.
+        sample[40]["high"] = 106.1
+        sample[40]["volume"] = 100.
+        raw = [{"timestamp_utc": b["t"].isoformat(), "open": b["open"], "high": b["high"], "low": b["low"], "close": b["close"], "volume": b["volume"]} for b in sample]
+        self.assertFalse(any(s["time_utc"] == sample[40]["t"].isoformat() for s in evaluate(raw)))
 
     def test_small_sample_does_not_select_parameters(self):
         output = validate(bars())
