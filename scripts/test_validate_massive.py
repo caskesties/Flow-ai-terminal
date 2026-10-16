@@ -45,9 +45,14 @@ class ValidationTests(unittest.TestCase):
         indices = [i for i, _ in candidates(sample, 1.5, 20, 0, 85)]
         self.assertNotIn(40, indices)
 
+    def test_small_sample_does_not_select_parameters(self):
+        output = validate(bars())
+        self.assertTrue(any("Insufficient evidence" in line for line in output))
+        self.assertFalse(any("Chosen parameters" in line for line in output))
+
     def test_report_no_signal(self):
         output = validate(bars())
-        self.assertTrue(any("No independent qualifying signals" in line for line in output))
+        self.assertTrue(any("Insufficient evidence" in line for line in output))
 
 if __name__ == "__main__":
     unittest.main()
