@@ -9,7 +9,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 API = "https://api.massive.com/futures/v1/aggs/"
 OUT = pathlib.Path("reports/massive")
@@ -19,8 +19,8 @@ def download(ticker, day, key):
     query = urllib.parse.urlencode({
         "resolution": "1min",
         "window_start.gte": day,
-        "window_start.lte": day,
-        "limit": 1500,
+        "window_start.lt": (datetime.strptime(day, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d"),
+        "limit": 5000,
         "sort": "window_start.asc",
     })
     req = urllib.request.Request(API + urllib.parse.quote(ticker, safe="") + "?" + query,
@@ -48,6 +48,8 @@ def download(ticker, day, key):
         except (KeyError,ValueError,TypeError,OverflowError):
             continue
     cleaned.sort(key=lambda x:x["timestamp_utc"])
+    if len(cleaned) < 26:
+        raise RuntimeError(f"{ticker}: insufficient data: {len(cleaned)} bars; verify contract/date")
     return cleaned
 
 def evaluate(rows):
