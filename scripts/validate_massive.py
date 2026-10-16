@@ -7,6 +7,7 @@ from datetime import datetime
 
 ROOT = pathlib.Path("reports/massive")
 HORIZON = 5
+MIN_TRAINING_SIGNALS = 10
 PARAMETERS = [(1.5, 20), (2.0, 20), (1.5, 30)]
 
 def load(path):
@@ -71,11 +72,17 @@ def validate(bars):
         moves = nonoverlapping(candidates(bars, multiple, window, 0, split-HORIZON))
         score = statistics.mean(moves) if moves else float("-inf")
         training.append((score, multiple, window, moves))
-    _, multiple, window, in_sample = max(training, key=lambda x: x[0])
+    eligible = [item for item in training if len(item[3]) >= MIN_TRAINING_SIGNALS]
+    if not eligible:
+        return [f"Bars: {len(bars)}. Chronological split: {split} training / {len(bars)-split} holdout.",
+                f"Insufficient evidence: fewer than {MIN_TRAINING_SIGNALS} independent training signals per candidate.",
+                "No parameter selected and holdout deliberately not scored. Add more historical sessions."]
+    _, multiple, window, in_sample = max(eligible, key=lambda x: x[0])
     out_sample = nonoverlapping(candidates(bars, multiple, window, split, len(bars)))
     return [
         f"Bars: {len(bars)}. Chronological split: {split} training / {len(bars)-split} holdout.",
         "Parameter choices evaluated on training only: volume 1.5x/20 bars; 2.0x/20; 1.5x/30.",
+        f"Selection requires at least {MIN_TRAINING_SIGNALS} independent training signals per candidate.",
         "Selection criterion: highest mean signed future close change (subject to selection bias).",
         f"Chosen parameters: {multiple}x volume and {window}-bar breakout.",
         "Requires uninterrupted 1-minute windows through signal horizon; skips gaps and overlapping signals.",

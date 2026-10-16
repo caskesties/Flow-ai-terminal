@@ -55,6 +55,9 @@ def download(ticker, day, key):
 def evaluate(rows):
     signals = []
     for i in range(20, len(rows)-5):
+        segment = rows[i-20:i+6]
+        if any((datetime.fromisoformat(b["timestamp_utc"]) - datetime.fromisoformat(a["timestamp_utc"])).total_seconds() != 60 for a, b in zip(segment, segment[1:])):
+            continue
         prior = rows[i-20:i]
         current = rows[i]
         mean_vol = statistics.mean(x["volume"] for x in prior)
@@ -107,7 +110,7 @@ def main():
         report += [f"## {ticker}",f"- Candles returned: {len(rows)}",f"- Missing/closed minute gaps in received sequence: {gaps}",
                    f"- Exploratory 20-bar breakout + 1.5x volume signals: {len(signals)}",
                    f"- Positive directional close after 5 bars: {wins}/{len(signals)}" if signals else "- No qualifying signals (rate not computed).",
-                   "- Sample is neither a backtest nor proof of predictive accuracy.",""]
+                   "- Sample is neither a backtest nor proof of predictive accuracy. Signals with missing 1-minute intervals are excluded.",""]
     (OUT/"REPORT.md").write_text("\n".join(report)+"\n")
     print("\n".join(report))
     return 1 if failures else 0
