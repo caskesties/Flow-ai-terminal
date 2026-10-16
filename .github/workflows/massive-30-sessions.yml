@@ -1,0 +1,38 @@
+name: Massive 30-session validation
+on:
+  workflow_dispatch:
+    inputs:
+      end_day:
+        description: 'Last historical UTC day (YYYY-MM-DD, old enough for plan delay)'
+        required: true
+        default: '2026-10-13'
+        type: string
+      contracts:
+        description: 'Up to two dated futures tickers'
+        required: true
+        default: 'GCZ6,MGCZ6'
+        type: string
+permissions:
+  contents: read
+jobs:
+  validate-30:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      RESEARCH_END_DAY: ${{ inputs.end_day }}
+      RESEARCH_TICKERS: ${{ inputs.contracts }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test validation logic
+        run: python3 -m unittest discover -s scripts -p 'test_validate_massive.py' -v
+      - name: Analyze 30 sessions (OHLCV, not order flow)
+        run: python3 scripts/massive_30_sessions.py
+      - name: Attach report even on incomplete data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: massive-30-session-report
+          path: reports/massive_30/
+          if-no-files-found: warn
+          retention-days: 14
