@@ -24,7 +24,11 @@ jobs:
       RESEARCH_TICKERS: ${{ inputs.contracts }}
     steps:
       - uses: actions/checkout@v4
+      - name: Validate research logic without API calls
+        run: python3 -m unittest discover -s scripts -p 'test_validate_massive.py' -v
       - run: python3 scripts/massive_historical_research.py
+      - name: Validate on chronological holdout
+        run: python3 scripts/validate_massive.py
       - name: Attach report for review
         if: always()
         uses: actions/upload-artifact@v4
