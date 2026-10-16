@@ -13,3 +13,9 @@ Não há IA treinada nem conectividade efetiva a dados CME, B3, NinjaTrader ou P
 
 ## Filtro DI1 e pressão anormal
 WIN: feed WSS aceita, além de trades, `{ "symbol":"DI1-...", "timestamp":"2026-10-15T18:00:00Z", "rate":13.25 }` (taxa percentual anual; especificar vencimento consistente). DI1 precisa estar fresco (<3 s) e mudar na direção contrária do WIN em janela de 5s por pelo menos 0,005 ponto percentual; a relação inversa é hipótese e falha em certos regimes. Volume da última janela de 1s comparado à média de 12 segundos anteriores (mínimo 8 janelas com negócios), gatilho >=1,8× e predominância >=55%. Pré-alerta experimental em milissegundos após chegada da mensagem, com objetivo de antecipar 2–3s, mas sem garantia de antecedência ou acerto. Sem DI1, não há pré-alerta WIN por confluência nem confirmação WIN. A simulação DI1 é inteiramente fictícia. CSV de trades isolados NÃO contém DI1, logo não pode satisfazer esse filtro.
+
+## Pré-abertura (estrutura preparada)
+Painel de preço teórico, quantidade teórica, desequilíbrio de ofertas e hipótese para abertura. Inicialmente mostra apenas campos indisponíveis — **não** inventa dados nem sinais. Para ativação: validar cobertura da Nelogica para leilão e tipos de mensagens, sessão/horário por instrumento, tratamento de cancelamentos de ofertas e confirmação em negócios executados após abertura. A ferramenta não opera automaticamente.
+
+## Validação de desempenho (pendente)
+Registrar sinais, estado do feed, horário, preços, latência, risco e movimento futuro por horizonte; separar testes de ajuste e testes fora da amostra. Medir falsos positivos, taxa de acerto, drawdown, custos e slippage antes de classificar qualquer estratégia como confiável.
