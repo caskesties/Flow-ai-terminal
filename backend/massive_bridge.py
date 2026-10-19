@@ -29,6 +29,9 @@ async def main():
                 await ws.close(code=1008,reason="Unauthorized");return
             requested=str(hello.get("symbol","")).strip().upper()
             if requested not in symbols:
+                matches=[contract for contract in symbols if contract.startswith(requested) and len(contract)>len(requested)]
+                if len(matches)==1:requested=matches[0]
+            if requested not in symbols:
                 print("Flow browser rejected: unsupported contract requested=%s allowed=%s" % (requested,",".join(symbols)),flush=True)
                 await ws.close(code=1008,reason="Unknown contract");return
             queue=asyncio.Queue(maxsize=MAX_CLIENT_QUEUE)
