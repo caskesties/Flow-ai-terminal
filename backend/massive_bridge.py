@@ -13,7 +13,7 @@ def within_session(now=None):
     t=local.time()
     return clock_time(6,29)<=t<clock_time(8,30) or clock_time(16,30)<=t<clock_time(20,0)
 
-from collections import Counter
+from collections import Counter,defaultdict,deque
 import websockets
 from flow_classifier import FlowClassifier
 from server_signals import ServerFlowSignals
@@ -31,6 +31,7 @@ async def main():
     counts=Counter()
     last_report=time.monotonic()
     clients=set()
+    replay=defaultdict(lambda:deque(maxlen=12000))
     relayed=0
     feed_health={"last_market_event_ms":0,"last_classified_ms":0,"provider_connected":False}
     async def health_loop():
@@ -68,11 +69,17 @@ async def main():
                 print("Flow browser rejected: unsupported contract requested=%s allowed=%s" % (requested,",".join(symbols)),flush=True)
                 await ws.close(code=1008,reason="Unknown contract");return
             queue=asyncio.Queue(maxsize=MAX_CLIENT_QUEUE)
-            clients.add((ws,requested,queue))
             print("Flow browser authenticated for %s" % requested,flush=True)
             await ws.send(json.dumps({"type":"ready","contract":requested,"classification":"estimated","server_analysis":"experimental","push_public_key":push_alerts.PUBLIC_KEY}))
+            now_ms=int(time.time()*1000)
+            snapshot=[row for row in replay[requested] if now_ms-row["timestamp"]<=90000]
+            print("Flow replay for %s: %d classified prints" % (requested,len(snapshot)),flush=True)
+            for offset in range(0,len(snapshot),150):
+                await ws.send(json.dumps({"type":"replay_batch","trades":snapshot[offset:offset+150]}))
+            await ws.send(json.dumps({"type":"replay_complete","count":len(snapshot)}))
             for alert in signal_engine.recent_alerts(requested):
                 await ws.send(json.dumps(alert))
+            clients.add((ws,requested,queue))
             try:
                 while True:
                     event=await queue.get()
@@ -132,6 +139,7 @@ async def main():
                                 except (KeyError,TypeError,ValueError):pass
                             item=classifier.process(msg)
                             if item:
+                                replay[item["symbol"]].append(dict(item))
                                 feed_health["last_classified_ms"]=int(time.time()*1000)
                                 server_signal=signal_engine.on_trade(item)
                                 for outcome in signal_engine.drain_updates():
