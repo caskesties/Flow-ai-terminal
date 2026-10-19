@@ -35,3 +35,6 @@ O WebSocket pode fornecer trades NQ/MNQ e um proxy de juros `ZN` (preço de futu
 
 ## Fibonacci contextual (2026-10-18)
 Extremos ordenados no tempo dos últimos cinco minutos de negócios, excluindo os cinco segundos recentes; exige 60 segundos de amplitude temporal, ao menos 35 negócios e variação de 20 ticks. Níveis de retração 38,2%, 50%, 61,8% e 78,6% arredondados ao tick do ativo. Referência atualizada no máximo a cada 30 segundos. O Fibonacci aparece como contexto no painel e na explicação do sinal, sem modificar automaticamente a condição de entrada; não comprova suporte/resistência nem performance. Oscilações e dados incompletos podem tornar pivôs instáveis. Validar em backtest fora da amostra antes de promover a filtro obrigatório.
+
+### Zona prioritária 50–61,8%
+O painel destaca quando o preço estiver entre retrações de 50% e 61,8% (com tolerância de 1 tick), em ambos os sentidos. É somente prioridade contextual; NÃO altera autorizações de sinais. A hipótese de maior continuidade nessa faixa não está validada estatisticamente. Compras exigirão juros em queda e agressão compradora confirmada; vendas, juros em alta e agressão vendedora confirmada, nos trabalhos futuros de validação e calibração.
