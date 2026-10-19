@@ -6,6 +6,7 @@ import asyncio,json,os,time
 from collections import Counter
 import websockets
 from flow_classifier import FlowClassifier
+from server_signals import ServerFlowSignals
 
 MAX_CLIENT_QUEUE=1000
 async def main():
@@ -15,6 +16,7 @@ async def main():
     symbols=[s.strip().upper() for s in os.getenv("MASSIVE_SYMBOLS","GCZ6,MGCZ6,NQZ6,MNQZ6").split(",") if s.strip()]
     if not symbols or any(not s.isalnum() for s in symbols):raise SystemExit("Invalid dated futures symbols")
     classifier=FlowClassifier()
+    signal_engine=ServerFlowSignals()
     counts=Counter()
     last_report=time.monotonic()
     clients=set()
@@ -39,7 +41,9 @@ async def main():
             queue=asyncio.Queue(maxsize=MAX_CLIENT_QUEUE)
             clients.add((ws,requested,queue))
             print("Flow browser authenticated for %s" % requested,flush=True)
-            await ws.send(json.dumps({"type":"ready","contract":requested,"classification":"estimated"}))
+            await ws.send(json.dumps({"type":"ready","contract":requested,"classification":"estimated","server_analysis":"experimental"}))
+            for alert in signal_engine.recent_alerts(requested):
+                await ws.send(json.dumps(alert))
             try:
                 while True:
                     event=await queue.get()
@@ -80,6 +84,7 @@ async def main():
                                     zn_price=float(msg["p"]);zn_time=int(msg["t"])
                                     if zn_price>0:
                                         zn_event={"symbol":"ZN","timestamp":zn_time,"price":zn_price,"contract":str(msg["sym"]),"source":"ZN futures last trade"}
+                                        signal_engine.on_treasury(zn_time,zn_price,"ZN")
                                         for _,contract,q in tuple(clients):
                                             if contract.startswith(("MNQ","NQ")) and not q.full():q.put_nowait(zn_event)
                                 except (KeyError,TypeError,ValueError):pass
@@ -89,11 +94,17 @@ async def main():
                                     zn_ts=int(max(msg.get("bt",0),msg.get("at",0)) or msg["t"])
                                     if bid>0 and ask>bid and zn_ts>0:
                                         zn_quote={"symbol":"ZN","contract":str(msg["sym"]),"timestamp":zn_ts,"price":(bid+ask)/2,"source":"BBO midpoint (derived, not yield)"}
+                                        signal_engine.on_treasury(zn_ts,(bid+ask)/2,"ZN")
                                         for _,contract,q in tuple(clients):
                                             if contract.startswith(("MNQ","NQ")) and not q.full():q.put_nowait(zn_quote)
                                 except (KeyError,TypeError,ValueError):pass
                             item=classifier.process(msg)
                             if item:
+                                server_signal=signal_engine.on_trade(item)
+                                if server_signal:
+                                    print("Server flow diagnostic: %s %s ratio=%s clients=%d" % (server_signal["symbol"],server_signal["side"],server_signal["ratio"],len(clients)),flush=True)
+                                    for _,contract,q in tuple(clients):
+                                        if contract==server_signal["symbol"] and not q.full():q.put_nowait(server_signal)
                                 counts["classified"]+=1
                                 counts["classified."+item["symbol"]]+=1
                             if time.monotonic()-last_report>=30:
