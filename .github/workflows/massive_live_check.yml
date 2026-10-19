@@ -1,0 +1,26 @@
+name: Massive Futures live feed entitlement check
+on:
+  workflow_dispatch:
+    inputs:
+      ticker:
+        description: "Active dated futures contract (e.g. GCZ6)"
+        required: true
+        default: "GCZ6"
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install WebSocket client
+        run: python -m pip install websocket-client==1.8.0
+      - name: Verify live trades and quotes without showing the key
+        env:
+          MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+          LIVE_TEST_TICKER: ${{ inputs.ticker }}
+        run: python scripts/check_massive_live.py
