@@ -1,4 +1,4 @@
-"""Experimental 2-minute wickless Elephant Bar with flow and level confirmation.
+"""Experimental 2-minute strong-close Elephant Bar with flow and level confirmation.
 Uses classified trade prints, not exchange OHLC. Research signals only.
 """
 from collections import defaultdict, deque
@@ -10,6 +10,7 @@ class ElephantFlowModel:
         self.recent=defaultdict(lambda:deque(maxlen=20000))
         self.candidates={}
         self.last={}
+        self.tick_size={"GC":0.1,"MGC":0.1,"NQ":0.25,"MNQ":0.25}
         self.diagnostics=defaultdict(lambda:{"closed":0,"body_size":0,"wickless":0,"delta":0,"waves":0,"technical":0,"candidates":0})
     def on_trade(self, trade):
         ts=int(trade["timestamp"]); sym=trade["symbol"]
@@ -55,11 +56,11 @@ class ElephantFlowModel:
                 "ratio":c["ratio"],"directional_share":round(same/volume,3),
                 "treasury":"not_required","source":"server_live",
                 "elephant":{"open":c["open"],"high":c["high"],"low":c["low"],"close":c["price"],
-                            "timeframe_seconds":120,"wickless":True,
+                            "timeframe_seconds":120,"closing_wick_ticks":c["closing_wick_ticks"],"body_fraction":c["body_fraction"],
                             "relative_range":c["relative_range"],"body_larger_than_previous":3,
                             "confirmation":"5s above/below breakout; continuation"},
                 "level_type":c["level_type"],"level":c["level"],"large_flow_waves":c["large_flow_waves"],"institution_identity_verified":False,
-                "reason":"Barra 2m maior que os 3 corpos anteriores, sem pavios nos prints classificados; agressao alinhada, nivel rompido e sustentado por 5s. Diagnostico experimental."}
+                "reason":"Barra 2m maior que os 3 corpos anteriores, com fechamento ate 1 tick da extremidade e corpo solido; agressao alinhada, nivel rompido e sustentado por 5s. Diagnostico experimental."}
     def _close(self,sym,bar,previous):
         # Require a completed interval with prices throughout, and enough historical bars.
         self.diagnostics[sym]["closed"]+=1
@@ -79,9 +80,15 @@ class ElephantFlowModel:
         if total<=0:return
         side="buy" if bar["c"]>bar["o"] else "sell" if bar["c"]<bar["o"] else None
         if not side:return
-        # Exact zero wicks in classified prints; one tick of shadow disqualifies.
-        if side=="buy" and (bar["o"]!=bar["l"] or bar["c"]!=bar["h"]):return
-        if side=="sell" and (bar["o"]!=bar["h"] or bar["c"]!=bar["l"]):return
+        # Only the closing-side wick is decisive: ideal zero, at most one tick.
+        # Price OHLC is built from every print, including those not classified.
+        tick=next((v for prefix,v in self.tick_size.items() if sym.startswith(prefix)),None)
+        if tick is None:return
+        closing_wick=bar["h"]-bar["c"] if side=="buy" else bar["c"]-bar["l"]
+        if closing_wick < -1e-7 or closing_wick>tick+1e-7:return
+        # At least 80% of the whole candle must be real body; large opposing
+        # rejection wicks should not qualify as a solid Elephant Bar.
+        if body/span<.80:return
         self.diagnostics[sym]["wickless"]+=1
         strength=(buy if side=="buy" else sell)/total
         if strength<.65:return
@@ -123,4 +130,5 @@ class ElephantFlowModel:
            "large_flow_waves":len(qualifying),
            "price":bar["c"],"open":bar["o"],"high":bar["h"],"low":bar["l"],
            "relative_range":round(span/avg,2),"ratio":round(ratio,2),
+           "closing_wick_ticks":round(closing_wick/tick,3),"body_fraction":round(body/span,3),
            "level":level,"level_type":level_type}
