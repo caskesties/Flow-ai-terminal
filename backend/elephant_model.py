@@ -57,10 +57,10 @@ class ElephantFlowModel:
                 "treasury":"not_required","source":"server_live",
                 "elephant":{"open":c["open"],"high":c["high"],"low":c["low"],"close":c["price"],
                             "timeframe_seconds":120,"closing_wick_ticks":c["closing_wick_ticks"],"body_fraction":c["body_fraction"],
-                            "relative_range":c["relative_range"],"body_larger_than_previous":3,
+                            "relative_range":c["relative_range"],"previous_reference_bars":3,
                             "confirmation":"5s above/below breakout; continuation"},
                 "level_type":c["level_type"],"level":c["level"],"large_flow_waves":c["large_flow_waves"],"institution_identity_verified":False,
-                "reason":"Barra 2m maior que os 3 corpos anteriores, com fechamento ate 1 tick da extremidade e corpo solido; agressao alinhada, nivel rompido e sustentado por 5s. Diagnostico experimental."}
+                "reason":"Barra 2m fechando no extremo dos 3 candles anteriores +/-1 tick, com fechamento ate 1 tick da extremidade e corpo solido; agressao alinhada, nivel rompido e sustentado por 5s. Diagnostico experimental."}
     def _close(self,sym,bar,previous):
         # Require a completed interval with prices throughout, and enough historical bars.
         self.diagnostics[sym]["closed"]+=1
@@ -71,10 +71,9 @@ class ElephantFlowModel:
         avg=sum(ranges)/len(ranges)
         if avg<=0:return
         span=bar["h"]-bar["l"]
-        # Strictly larger body than each of the last three completed 2-minute bars.
-        previous_bodies=[abs(x["c"]-x["o"]) for x in prior[-3:]]
+        # Compare CLOSE against extremes of previous three bars, not body size.
         body=abs(bar["c"]-bar["o"])
-        if span<=0 or body<=max(previous_bodies):return
+        if span<=0:return
         self.diagnostics[sym]["body_size"]+=1
         buy=bar["buy"];sell=bar["sell"];total=buy+sell
         if total<=0:return
@@ -84,6 +83,11 @@ class ElephantFlowModel:
         # Price OHLC is built from every print, including those not classified.
         tick=next((v for prefix,v in self.tick_size.items() if sym.startswith(prefix)),None)
         if tick is None:return
+        previous_high=max(x["h"] for x in prior[-3:])
+        previous_low=min(x["l"] for x in prior[-3:])
+        level=previous_high if side=="buy" else previous_low
+        if side=="buy" and bar["c"]<level-tick-1e-7:return
+        if side=="sell" and bar["c"]>level+tick+1e-7:return
         closing_wick=bar["h"]-bar["c"] if side=="buy" else bar["c"]-bar["l"]
         if closing_wick < -1e-7 or closing_wick>tick+1e-7:return
         # At least 80% of the whole candle must be real body; large opposing
@@ -104,31 +108,19 @@ class ElephantFlowModel:
         qualifying.sort()
         if not any(b-a>=2 for i,a in enumerate(qualifying) for b in qualifying[i+1:]):return
         self.diagnostics[sym]["waves"]+=1
-        # Previous 20 complete 2m bars: confirmed support/resistance and Fibonacci.
+        # Last 20 bars are context; the entry reference is the previous 3-bar extreme.
         lo=min(x["l"] for x in prior);hi=max(x["h"] for x in prior)
         fibs=[lo+(hi-lo)*r for r in (.382,.5,.618)]
-        resistance=max(x["h"] for x in prior[-10:])
-        support=min(x["l"] for x in prior[-10:])
-        level=resistance if side=="buy" else support
-        crossed=bar["o"]<=level<bar["c"] if side=="buy" else bar["o"]>=level>bar["c"]
-        # Accept either a validated support/resistance breakout OR a Fibonacci
-        # crossing, but never just proximity to a level without crossing it.
-        fib_cross=[f for f in fibs if
-                   (bar["o"]<=f<bar["c"] if side=="buy" else bar["o"]>=f>bar["c"])]
-        if not crossed and not fib_cross:return
-        if crossed:
-            level_type="support_resistance_breakout"
-        else:
-            level=min(fib_cross,key=lambda x:abs(bar["c"]-x))
-            level_type="fibonacci_cross"
+        fib_nearest=min(fibs,key=lambda f:abs(bar["c"]-f))
+        level_type="prior_3_extreme_near_breakout"
         self.diagnostics[sym]["technical"]+=1
         # Reject an opposing structural obstacle immediately beyond the close.
         obstacle=max((x["h"] for x in prior if x["h"]>bar["c"]),default=None) if side=="buy" else min((x["l"] for x in prior if x["l"]<bar["c"]),default=None)
-        if obstacle is not None and abs(obstacle-bar["c"])<=avg*.25:return
+        if obstacle is not None and abs(obstacle-bar["c"])<=avg*.25 and abs(obstacle-level)>tick:return
         self.diagnostics[sym]["candidates"]+=1
         self.candidates[sym]={"closed_at":bar["start"]+120000,"side":side,
            "large_flow_waves":len(qualifying),
            "price":bar["c"],"open":bar["o"],"high":bar["h"],"low":bar["l"],
            "relative_range":round(span/avg,2),"ratio":round(ratio,2),
            "closing_wick_ticks":round(closing_wick/tick,3),"body_fraction":round(body/span,3),
-           "level":level,"level_type":level_type}
+           "level":level,"level_type":level_type,"fib_nearest":fib_nearest}
