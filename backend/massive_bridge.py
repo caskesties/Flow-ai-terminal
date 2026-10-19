@@ -7,6 +7,7 @@ from collections import Counter
 import websockets
 from flow_classifier import FlowClassifier
 from server_signals import ServerFlowSignals
+import push_alerts
 
 MAX_CLIENT_QUEUE=1000
 async def main():
@@ -40,6 +41,14 @@ async def main():
             if not hmac.compare_digest(str(hello.get("token","")),access):
                 print("Flow browser rejected: token mismatch",flush=True)
                 await ws.close(code=1008,reason="Unauthorized");return
+            if hello.get("type")=="push_subscribe":
+                try:
+                    push_alerts.add(hello.get("subscription"))
+                    await ws.send(json.dumps({"type":"push_registered","success":True}))
+                except ValueError as exc:
+                    await ws.send(json.dumps({"type":"push_registered","success":False,"reason":str(exc)}))
+                await ws.close(code=1000)
+                return
             requested=str(hello.get("symbol","")).strip().upper()
             paired=bool(hello.get("paired")) and requested.startswith("MGC")
             if requested not in symbols:
@@ -121,6 +130,7 @@ async def main():
                                         if contract==outcome["symbol"] and not q.full():q.put_nowait(outcome)
                                 if server_signal:
                                     print("Server flow diagnostic: %s %s ratio=%s clients=%d" % (server_signal["symbol"],server_signal["side"],server_signal["ratio"],len(clients)),flush=True)
+                                    asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(server_signal)))
                                     for _,contract,q in tuple(clients):
                                         if contract==server_signal["symbol"] and not q.full():q.put_nowait(server_signal)
                                 counts["classified"]+=1
