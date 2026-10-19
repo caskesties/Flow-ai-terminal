@@ -50,7 +50,7 @@ async def main():
             print("Flow browser disconnected",flush=True)
     async def provider():
         nonlocal last_report
-        retry=2
+        retry=15
         while True:
             try:
                 async with websockets.connect("wss://socket.massive.com/futures",ping_interval=20,max_size=4_000_000) as ws:
@@ -66,6 +66,8 @@ async def main():
                                     channels=",".join(kind+"."+sym for sym in symbols for kind in ("T","Q"))
                                     await ws.send(json.dumps({"action":"subscribe","params":channels}))
                                 if msg.get("status")=="auth_failed":raise RuntimeError("Massive authorization failed")
+                                if msg.get("status") in ("max_connections","auth_failed"):
+                                    print("Massive provider status: %s details=%s" % (msg.get("status"),str(msg.get("message",""))[:220]),flush=True)
                                 if msg.get("status") in ("error","success"):
                                     print("Massive subscription status: %s %s" % (msg.get("status"),str(msg.get("message",""))[:160]),flush=True)
                                 continue
@@ -110,7 +112,7 @@ async def main():
                                             await client.close(code=1013,reason="Slow client, reconnect")
                                             clients.discard((client,sym,queue))
                                         else:queue.put_nowait(outgoing)
-                    retry=2
+                    retry=15
             except (OSError,websockets.exceptions.WebSocketException,RuntimeError,ValueError) as exc:
                 print("Massive stream disconnected: %s code=%s reason=%s" % (type(exc).__name__,getattr(exc,"code",getattr(getattr(exc,"rcvd",None),"code","n/a")),str(getattr(exc,"reason",getattr(getattr(exc,"rcvd",None),"reason","")))[:120]),flush=True)
                 for client,_,_ in tuple(clients):
