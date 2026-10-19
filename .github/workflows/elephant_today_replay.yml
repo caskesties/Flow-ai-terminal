@@ -22,6 +22,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate Python syntax
         run: python3 -m py_compile scripts/replay_elephant_today.py backend/elephant_model.py backend/flow_classifier.py
+      - name: Audit independent price candles
+        run: python3 scripts/audit_elephant_candles.py
       - name: Replay tick history
         run: python3 scripts/replay_elephant_today.py
       - name: Upload partial or complete results
