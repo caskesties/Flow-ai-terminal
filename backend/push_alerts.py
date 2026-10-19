@@ -25,7 +25,7 @@ def add(subscription):
         SUBSCRIPTIONS.pop(oldest,None)
 def _send(subscription,payload):
     private=base64.b64decode(PRIVATE_B64).decode()
-    webpush(subscription_info=subscription,data=json.dumps(payload),vapid_private_key=private,vapid_claims={"sub":"mailto:flow-alerts@example.com"},ttl=20)
+    webpush(subscription_info=subscription,data=json.dumps(payload),vapid_private_key=private,vapid_claims={"sub":"https://github.com/caskesties/Flow-ai-terminal"},ttl=20)
 async def deliver(payload):
     if not enabled():return
     for endpoint,subscription in list(SUBSCRIPTIONS.items()):
