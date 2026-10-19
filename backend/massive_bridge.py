@@ -72,10 +72,14 @@ async def main():
                             if not authorized:continue
                             if msg.get("ev") in ("T","Q"):
                                 counts[msg["ev"]]+=1
+                                counts[msg["ev"]+"."+str(msg.get("sym","unknown"))]+=1
                             item=classifier.process(msg)
-                            if item:counts["classified"]+=1
+                            if item:
+                                counts["classified"]+=1
+                                counts["classified."+item["symbol"]]+=1
                             if time.monotonic()-last_report>=30:
                                 print("Provider 30s diagnostics: trades=%d quotes=%d classified=%d clients=%d samples=%s" %(counts["T"],counts["Q"],counts["classified"],len(clients),str(getattr(classifier,"recent",{}).get(symbols[0],[]) and list(classifier.recent[symbols[0]])[-1].get("timestamp","none"))),flush=True)
+                                print("Per-contract 30s: "+", ".join("%s=%d"%(k,v) for k,v in sorted(counts.items()) if "." in k),flush=True)
                                 counts.clear()
                                 last_report=time.monotonic()
                             if item:
