@@ -33,6 +33,7 @@ async def main():
     clients=set()
     replay=defaultdict(lambda:deque(maxlen=12000))
     relayed=0
+    latest_treasury=None
     feed_health={"last_market_event_ms":0,"last_classified_ms":0,"provider_connected":False}
     async def health_loop():
         while True:
@@ -77,6 +78,8 @@ async def main():
             for offset in range(0,len(snapshot),150):
                 await ws.send(json.dumps({"type":"replay_batch","trades":snapshot[offset:offset+150]}))
             await ws.send(json.dumps({"type":"replay_complete","count":len(snapshot)}))
+            if requested.startswith(("MNQ","NQ")) and latest_treasury and abs(now_ms-latest_treasury["timestamp"])<=10000:
+                await ws.send(json.dumps(latest_treasury))
             for alert in signal_engine.recent_alerts(requested):
                 await ws.send(json.dumps(alert))
             clients.add((ws,requested,queue))
@@ -89,7 +92,7 @@ async def main():
         except websockets.exceptions.ConnectionClosed:
             print("Flow browser disconnected",flush=True)
     async def provider():
-        nonlocal last_report
+        nonlocal last_report,latest_treasury
         retry=15
         while True:
             try:
@@ -124,6 +127,7 @@ async def main():
                                     if zn_price>0:
                                         zn_event={"symbol":"ZN","timestamp":zn_time,"price":zn_price,"contract":str(msg["sym"]),"source":"ZN futures last trade"}
                                         signal_engine.on_treasury(zn_time,zn_price,"ZN")
+                                        latest_treasury=zn_event
                                         for _,contract,q in tuple(clients):
                                             if contract.startswith(("MNQ","NQ")) and not q.full():q.put_nowait(zn_event)
                                 except (KeyError,TypeError,ValueError):pass
@@ -134,6 +138,7 @@ async def main():
                                     if bid>0 and ask>bid and zn_ts>0:
                                         zn_quote={"symbol":"ZN","contract":str(msg["sym"]),"timestamp":zn_ts,"price":(bid+ask)/2,"source":"BBO midpoint (derived, not yield)"}
                                         signal_engine.on_treasury(zn_ts,(bid+ask)/2,"ZN")
+                                        latest_treasury=zn_quote
                                         for _,contract,q in tuple(clients):
                                             if contract.startswith(("MNQ","NQ")) and not q.full():q.put_nowait(zn_quote)
                                 except (KeyError,TypeError,ValueError):pass
