@@ -1,0 +1,22 @@
+name: Probe Massive historical futures access
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/probe_massive_historical.py'
+      - '.github/workflows/probe_massive_historical.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      FLOW_RESEARCH_DAY: '2026-10-19'
+      FLOW_RESEARCH_SYMBOLS: 'GCZ6,MGCZ6,NQZ6,MNQZ6'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Probe history for today's California morning
+        run: python3 scripts/probe_massive_historical.py
