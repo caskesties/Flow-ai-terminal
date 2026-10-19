@@ -176,10 +176,12 @@ const isNasdaq=symbol()==='NQ'||symbol()==='MNQ';
 const treasuryLast=treasuryTicks[treasuryTicks.length-1];
 const treasuryFresh=!!treasuryLast&&Math.abs(now-treasuryLast.timestamp)<=10000&&(source!=='live'||Date.now()-treasuryLast.timestamp<=10000);
 const treasuryWindows=[2000,5000,10000].map(ms=>{
- const previous=treasuryLast?[...treasuryTicks].reverse().find(t=>t.symbol===treasuryLast.symbol&&treasuryLast.timestamp-t.timestamp>=ms*.8&&treasuryLast.timestamp-t.timestamp<=ms*1.5):null;
- const change=previous?treasuryLast.value-previous.value:NaN;
- const threshold=treasuryLast?.symbol==='ZN'?.015625:.002;
- return {ms,change,valid:!!previous,direction:Number.isFinite(change)&&Math.abs(change)>=threshold?Math.sign(change):0};
+  // Choose the sample closest to the intended lookback, not simply the most recent in a broad interval.
+  const candidates=treasuryLast?treasuryTicks.filter(t=>t.symbol===treasuryLast.symbol&&t.timestamp<treasuryLast.timestamp&&treasuryLast.timestamp-t.timestamp>=ms*.75&&treasuryLast.timestamp-t.timestamp<=ms*1.25):[];
+  const previous=candidates.reduce((best,t)=>!best||Math.abs(treasuryLast.timestamp-t.timestamp-ms)<Math.abs(treasuryLast.timestamp-best.timestamp-ms)?t:best,null);
+  const change=previous?treasuryLast.value-previous.value:NaN;
+  const threshold=treasuryLast?.symbol==='ZN'?.015625:.002;
+  return {ms,change,valid:!!previous,previous,age:previous?(treasuryLast.timestamp-previous.timestamp):NaN,direction:Number.isFinite(change)&&Math.abs(change)>=threshold?Math.sign(change):0};
 });
 const longWindows=treasuryWindows.filter(w=>w.ms>=5000&&w.direction!==0);
 const contradictory=longWindows.length>1&&longWindows.some(w=>w.direction!==longWindows[0].direction);
@@ -201,7 +203,7 @@ const nasdaqRateOK=!isNasdaq||(yieldDirection!==0&&yieldDirection===-nasdaqDirec
 const nasdaqBurstOK=!isNasdaq||(priorSpan>=120000&&Number.isFinite(nasdaqRatio)&&nasdaqRatio>=1.8&&nasdaqShare>=.65&&nasdaqDirection!==0);
 const nasdaqAligned=!isNasdaq||(nasdaqDirection===sign&&nasdaqRateOK&&nasdaqBurstOK);
 if(isNasdaq){
- $('diStatus').textContent=!treasuryFresh?'ZN / US10Y ausente ou atrasado':(treasuryLast.symbol==='ZN'?'ZN preço (proxy inverso de yield)':'US10Y yield')+' · '+treasuryWindows.map(w=>(w.ms/1000)+'s '+(w.valid?(w.change>=0?'+':'')+fmt(w.change,4):'sem histórico')).join(' · ')+' · '+(contradictory?'JANELAS CONTRADITÓRIAS':yieldDirection===0?'direção não confirmada':yieldDirection<0?'yield proxy em queda':'yield proxy em alta');
+ $('diStatus').textContent=!treasuryFresh?'ZN / US10Y ausente ou atrasado':(treasuryLast.symbol==='ZN'?'ZN PREÇO (proxy, não yield)':'US10Y yield')+' · atual '+fmt(treasuryLast.value,5)+' ('+treasuryLast.source+') · amostras '+treasuryTicks.length+' · '+treasuryWindows.map(w=>(w.ms/1000)+'s '+(w.valid?'anterior '+fmt(w.previous.value,5)+' Δ '+(w.change>=0?'+':'')+fmt(w.change,5)+' ('+fmt(w.age/1000,1)+'s)':'sem amostra')).join(' · ')+' · '+(contradictory?'JANELAS CONTRADITÓRIAS':yieldDirection===0?'direção não confirmada':yieldDirection<0?'yield proxy em queda':'yield proxy em alta');
  const coverageSec=Math.round(priorSpan/1000); const totalSec=trades.length>1?Math.round((trades[trades.length-1].timestamp-trades[0].timestamp)/1000):0;
   $('burstStatus').textContent=Number.isFinite(nasdaqRatio)?fmt(nasdaqRatio,2)+'× média agressora (base '+coverageSec+'s; '+priorNasdaq.length+' negócios)': 'Histórico '+totalSec+'s; base anterior '+coverageSec+'s / 120s mín. ('+priorNasdaq.length+' negócios)'+(priorSpan>=120000?' · volume por lado insuficiente':' · referência insuficiente');
  $('confluence').textContent=nasdaqAligned?'CONFLUÊNCIA NASDAQ + JUROS':!qualityOK?'Bloqueado: qualidade do feed':!treasuryFresh?'Bloqueado: Treasury ausente/atrasado':yieldDirection===0?'Aguardando direção confirmada do Treasury':priorSpan<120000?'Aguardando histórico comparativo ≥120s':!nasdaqBurstOK?'Aguardando agressão anormal ≥1,8× e predomínio ≥65%':nasdaqDirection!==sign?'Aguardando preço acompanhar agressão':'Aguardando confluência juros/agressão';
