@@ -159,12 +159,22 @@ async def main():
                                             if contract.startswith(("MNQ","NQ")) and not q.full():q.put_nowait(zn_quote)
                                 except (KeyError,TypeError,ValueError):pass
                             item=classifier.process(msg)
+                            # Model C forms true tick-derived OHLC from all prints,
+                            # even when aggression cannot be classified.
+                            elephant_signal=None
+                            if msg.get("ev")=="T" and str(msg.get("sym","")) in symbols:
+                                try:
+                                    raw_trade={"symbol":str(msg["sym"]),
+                                        "timestamp":int(msg["t"]),"price":float(msg["p"]),
+                                        "size":float(msg["s"]),
+                                        "side":item["side"] if item else None}
+                                    elephant_signal=elephant_engine.on_trade(raw_trade)
+                                except (KeyError,ValueError,TypeError):pass
                             if item:
                                 replay[item["symbol"]].append(dict(item))
                                 feed_health["last_classified_ms"]=int(time.time()*1000)
                                 server_signal=signal_engine.on_trade(item)
                                 structure_signal=structure_engine.on_trade(item)
-                                elephant_signal=elephant_engine.on_trade(item)
                                 for outcome in signal_engine.drain_updates():
                                     print("Server outcome: %s %ss signed=%s favorable=%s adverse=%s gap=%s" % (outcome["symbol"],outcome["horizon_seconds"],outcome["signed_move"],outcome["favorable_excursion"],outcome["adverse_excursion"],outcome["data_gap"]),flush=True)
                                     for _,contract,q in tuple(clients):
