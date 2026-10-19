@@ -7,6 +7,9 @@ from datetime import datetime,time as clock_time
 from zoneinfo import ZoneInfo
 
 PACIFIC=ZoneInfo('America/Los_Angeles')
+def event_in_session(timestamp_ms):
+    return within_session(datetime.fromtimestamp(timestamp_ms/1000, PACIFIC))
+
 def within_session(now=None):
     local=(now or datetime.now(PACIFIC)).astimezone(PACIFIC)
     if local.weekday()>=5:return False
@@ -56,10 +59,10 @@ async def main():
                 print("Flow browser rejected: token mismatch",flush=True)
                 await ws.close(code=1008,reason="Unauthorized");return
             if hello.get("type")=="push_test":
-                success=bool(push_alerts.enabled() and push_alerts.SUBSCRIPTIONS)
+                success=bool(within_session() and push_alerts.enabled() and push_alerts.SUBSCRIPTIONS)
                 if success:
                     await push_alerts.deliver({"title":"FLOW · TESTE DE NOTIFICAÇÃO","body":"Teste técnico de push. NÃO é um sinal de mercado nem recomendação de entrada.","tag":"flow-push-test","url":"./index.html"})
-                await ws.send(json.dumps({"type":"push_test_result","success":success,"reason":"Envio solicitado; entrega no iPhone não confirmada" if success else "Push não configurado ou sem assinaturas ativas"}))
+                await ws.send(json.dumps({"type":"push_test_result","success":success,"reason":"Envio solicitado; entrega no iPhone não confirmada" if success else "Teste indisponível fora dos horários de alerta ou push não configurado"}))
                 await ws.close(code=1000)
                 return
             if hello.get("type")=="push_subscribe":
@@ -90,7 +93,8 @@ async def main():
             if requested.startswith(("MNQ","NQ")) and latest_treasury and abs(now_ms-latest_treasury["timestamp"])<=10000:
                 await ws.send(json.dumps(latest_treasury))
             for alert in signal_engine.recent_alerts(requested):
-                await ws.send(json.dumps(alert))
+                if event_in_session(alert["timestamp"]):
+                    await ws.send(json.dumps(alert))
             clients.add((ws,requested,queue))
             try:
                 while True:
@@ -164,18 +168,18 @@ async def main():
                                         if contract==outcome["symbol"] and not q.full():q.put_nowait(outcome)
                                 if server_signal:
                                     print("Server flow diagnostic: %s %s ratio=%s clients=%d" % (server_signal["symbol"],server_signal["side"],server_signal["ratio"],len(clients)),flush=True)
-                                    if within_session():
+                                    if event_in_session(server_signal["timestamp"]):
                                         asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(server_signal)))
-                                    for _,contract,q in tuple(clients):
-                                        if contract==server_signal["symbol"] and not q.full():q.put_nowait(server_signal)
+                                        for _,contract,q in tuple(clients):
+                                            if contract==server_signal["symbol"] and not q.full():q.put_nowait(server_signal)
                                 if structure_signal:
                                     signal_engine.alerts[item["symbol"]].append(structure_signal)
                                     signal_engine.pending[item["symbol"]].append({"event":structure_signal,"high":item["price"],"low":item["price"],"last_ts":item["timestamp"],"completed":set()})
                                     print("Model B structure diagnostic: %s %s ratio=%s" % (item["symbol"],structure_signal["side"],structure_signal["ratio"]),flush=True)
-                                    if within_session():
+                                    if event_in_session(structure_signal["timestamp"]):
                                         asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(structure_signal)))
-                                    for _,contract,q in tuple(clients):
-                                        if contract==structure_signal["symbol"] and not q.full():q.put_nowait(structure_signal)
+                                        for _,contract,q in tuple(clients):
+                                            if contract==structure_signal["symbol"] and not q.full():q.put_nowait(structure_signal)
                                 counts["classified"]+=1
                                 counts["classified."+item["symbol"]]+=1
                             if time.monotonic()-last_report>=30:
