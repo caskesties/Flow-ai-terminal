@@ -74,10 +74,13 @@ def run(sym):
                 if row.get("price") is None or row.get("size") is None:continue
                 record=classifier.process({"ev":"T","sym":sym,"t":millis,
                        "p":row["price"],"s":row["size"],"q":row.get("sequence_number")})
-                if record is None:continue
-                classified+=1
+                if record is not None:classified+=1
+                # Build OHLC from ALL trades; use estimated side only for flow.
+                raw_record={"timestamp":millis,"price":float(row["price"]),
+                            "size":float(row["size"]),"symbol":sym,
+                            "side":record["side"] if record else None}
                 elephant_model.time.time=lambda:millis/1000
-                signal=model.on_trade(record)
+                signal=model.on_trade(raw_record)
                 if signal and ANALYZE<=ts<END:
                     signals.append({k:signal[k] for k in ("timestamp","symbol","side","price","ratio","large_flow_waves","level_type","level")})
     finally:elephant_model.time.time=original
