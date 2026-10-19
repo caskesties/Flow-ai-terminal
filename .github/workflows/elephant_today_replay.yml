@@ -1,0 +1,33 @@
+name: Elephant 2m historical replay
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/replay_elephant_today.py'
+      - '.github/workflows/elephant_today_replay.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      MASSIVE_API_KEY: ${{ secrets.MASSIVE_API_KEY }}
+      FLOW_RESEARCH_DAY: '2026-10-19'
+      FLOW_RESEARCH_SYMBOLS: 'GCZ6,MGCZ6,NQZ6,MNQZ6'
+      FLOW_MAX_PAGES: '500'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Python syntax
+        run: python3 -m py_compile scripts/replay_elephant_today.py backend/elephant_model.py backend/flow_classifier.py
+      - name: Replay tick history
+        run: python3 scripts/replay_elephant_today.py
+      - name: Upload partial or complete results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: elephant-replay-2026-10-19
+          path: reports/elephant_today/REPORT.json
+          if-no-files-found: warn
+          retention-days: 14
