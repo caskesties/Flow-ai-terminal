@@ -18,6 +18,7 @@ async def main():
     counts=Counter()
     last_report=time.monotonic()
     clients=set()
+    relayed=0
     async def browser(ws):
         # Token is sent in initial auth message, not in URL/query logs.
         try:
@@ -44,6 +45,8 @@ async def main():
                     await ws.send(json.dumps(event))
             finally:clients.discard((ws,requested,queue))
         except (asyncio.TimeoutError,ValueError,KeyError):await ws.close(code=1008,reason="Invalid authorization")
+        except websockets.exceptions.ConnectionClosed:
+            print("Flow browser disconnected",flush=True)
     async def provider():
         nonlocal last_report
         retry=2
@@ -71,7 +74,7 @@ async def main():
                             item=classifier.process(msg)
                             if item:counts["classified"]+=1
                             if time.monotonic()-last_report>=30:
-                                print("Provider 30s diagnostics: trades=%d quotes=%d classified=%d clients=%d" %(counts["T"],counts["Q"],counts["classified"],len(clients)),flush=True)
+                                print("Provider 30s diagnostics: trades=%d quotes=%d classified=%d clients=%d samples=%s" %(counts["T"],counts["Q"],counts["classified"],len(clients),str(getattr(classifier,"recent",{}).get(symbols[0],[]) and list(classifier.recent[symbols[0]])[-1].get("timestamp","none"))),flush=True)
                                 counts.clear()
                                 last_report=time.monotonic()
                             if item:
@@ -93,7 +96,7 @@ async def main():
                 clients.clear()
                 await asyncio.sleep(retry)
                 retry=min(retry*2,60)
-    async with websockets.serve(browser,"0.0.0.0",int(os.getenv("FLOW_BRIDGE_PORT","8765")),max_size=10000,ping_interval=20):
+    async with websockets.serve(browser,"0.0.0.0",int(os.getenv("FLOW_BRIDGE_PORT","8765")),max_size=10000,ping_interval=60,ping_timeout=60):
         print("Private Flow bridge running on port %s; TLS reverse proxy required" % os.getenv("FLOW_BRIDGE_PORT","8765"),flush=True)
         await provider()
 if __name__=="__main__":asyncio.run(main())
