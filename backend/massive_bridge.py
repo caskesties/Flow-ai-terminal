@@ -109,8 +109,10 @@ async def main():
     async def provider():
         nonlocal last_report,latest_treasury
         retry=15
+        connection_limited=False
         while True:
             try:
+                connection_limited=False
                 async with websockets.connect("wss://socket.massive.com/futures",ping_interval=20,max_size=4_000_000) as ws:
                     await ws.send(json.dumps({"action":"auth","params":api_key}))
                     authorized=False
@@ -128,6 +130,7 @@ async def main():
                                     await ws.send(json.dumps({"action":"subscribe","params":channels}))
                                 if msg.get("status")=="auth_failed":raise RuntimeError("Massive authorization failed")
                                 if msg.get("status") in ("max_connections","auth_failed"):
+                                    if msg.get("status")=="max_connections":connection_limited=True
                                     print("Massive provider status: %s details=%s" % (msg.get("status"),str(msg.get("message",""))[:220]),flush=True)
                                 if msg.get("status") in ("error","success"):
                                     print("Massive subscription status: %s %s" % (msg.get("status"),str(msg.get("message",""))[:160]),flush=True)
@@ -223,12 +226,13 @@ async def main():
             except (OSError,websockets.exceptions.WebSocketException,RuntimeError,ValueError) as exc:
                 feed_health["provider_connected"]=False
                 print("Massive stream disconnected: %s code=%s reason=%s" % (type(exc).__name__,getattr(exc,"code",getattr(getattr(exc,"rcvd",None),"code","n/a")),str(getattr(exc,"reason",getattr(getattr(exc,"rcvd",None),"reason","")))[:120]),flush=True)
-                for client,_,_ in tuple(clients):
-                    try:await client.close(code=1012,reason="Upstream restarting")
-                    except Exception:pass
-                clients.clear()
+                # Keep browser WebSockets open: health_loop will report STALE until provider recovers.
+                # Provider connection limits can be caused by overlapping deployments or other clients.
+                # Avoid quickly competing for an already occupied account connection slot.
+                if connection_limited:
+                    retry=max(retry,120)
                 await asyncio.sleep(retry)
-                retry=min(retry*2,60)
+                retry=min(retry*2,300 if connection_limited else 60)
     async with websockets.serve(browser,"0.0.0.0",int(os.getenv("FLOW_BRIDGE_PORT","8765")),max_size=10000,ping_interval=60,ping_timeout=60):
         print("Private Flow bridge running on port %s; TLS reverse proxy required" % os.getenv("FLOW_BRIDGE_PORT","8765"),flush=True)
         watchdog=asyncio.create_task(health_loop())
