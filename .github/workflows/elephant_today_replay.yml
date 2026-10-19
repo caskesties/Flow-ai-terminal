@@ -17,6 +17,7 @@ jobs:
       FLOW_RESEARCH_DAY: '2026-10-19'
       FLOW_RESEARCH_SYMBOLS: 'GCZ6,MGCZ6,NQZ6,MNQZ6'
       FLOW_MAX_PAGES: '500'
+      FLOW_REPLAY_VERSION: 'strong-close-1tick-20261019'
     steps:
       - uses: actions/checkout@v4
       - name: Validate Python syntax
