@@ -101,6 +101,10 @@ async def main():
                             item=classifier.process(msg)
                             if item:
                                 server_signal=signal_engine.on_trade(item)
+                                for outcome in signal_engine.drain_updates():
+                                    print("Server outcome: %s %ss signed=%s favorable=%s adverse=%s gap=%s" % (outcome["symbol"],outcome["horizon_seconds"],outcome["signed_move"],outcome["favorable_excursion"],outcome["adverse_excursion"],outcome["data_gap"]),flush=True)
+                                    for _,contract,q in tuple(clients):
+                                        if contract==outcome["symbol"] and not q.full():q.put_nowait(outcome)
                                 if server_signal:
                                     print("Server flow diagnostic: %s %s ratio=%s clients=%d" % (server_signal["symbol"],server_signal["side"],server_signal["ratio"],len(clients)),flush=True)
                                     for _,contract,q in tuple(clients):
