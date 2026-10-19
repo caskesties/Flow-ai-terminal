@@ -108,7 +108,8 @@ async def main():
                                     print("Massive authentication OK",flush=True)
                                     authorized=True
                                     feed_health["provider_connected"]=True
-                                    channels=",".join(kind+"."+sym for sym in symbols for kind in ("T","Q"))
+                                    channels=",".join(kind+"."+sym for sym in dict.fromkeys([*symbols,"ZNZ6"]) for kind in ("T","Q"))
+                                     print("Massive subscribing: "+channels,flush=True)
                                     await ws.send(json.dumps({"action":"subscribe","params":channels}))
                                 if msg.get("status")=="auth_failed":raise RuntimeError("Massive authorization failed")
                                 if msg.get("status") in ("max_connections","auth_failed"):
