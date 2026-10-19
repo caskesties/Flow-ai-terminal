@@ -45,11 +45,16 @@ class ServerFlowSignals:
         if sym.startswith(("NQ","MNQ")):
             if len(self.treasury)<2 or abs(ts-self.treasury[-1][0])>10000:return None
             newest=self.treasury[-1]
-            older=next((x for x in self.treasury if newest[0]-5000<=x[0]<=newest[0]-1500 and x[2]==newest[2]),None)
-            if older is None or newest[2]!="ZN":return None
-            change=newest[1]-older[1]
-            if abs(change)<.015:return None
-            if (direction=="buy" and change<=0) or (direction=="sell" and change>=0):return None
+            if newest[2]!="ZN":return None
+            # Require coherent movement in 5s/10s; 2s is diagnostic only.
+            decisions=[]
+            for window_ms in (5000,10000):
+                older=next((x for x in reversed(self.treasury) if x[2]=="ZN" and window_ms*.8<=newest[0]-x[0]<=window_ms*1.5),None)
+                if older is None:continue
+                change=newest[1]-older[1]
+                if abs(change)>=.015625:decisions.append(1 if change>0 else -1)
+            if not decisions or len(set(decisions))>1:return None
+            if (direction=="buy" and decisions[0]<=0) or (direction=="sell" and decisions[0]>=0):return None
             treasury_status="ZN_price_proxy"
         key=(sym,direction)
         if ts-self.last_alert.get(key,0)<30000:return None
