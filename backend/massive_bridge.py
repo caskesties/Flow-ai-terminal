@@ -21,6 +21,7 @@ import websockets
 from flow_classifier import FlowClassifier
 from server_signals import ServerFlowSignals
 from structure_model import StructureFlowModel
+from elephant_model import ElephantFlowModel
 import push_alerts
 
 MAX_CLIENT_QUEUE=1000
@@ -33,6 +34,7 @@ async def main():
     classifier=FlowClassifier()
     signal_engine=ServerFlowSignals()
     structure_engine=StructureFlowModel()
+    elephant_engine=ElephantFlowModel()
     counts=Counter()
     last_report=time.monotonic()
     clients=set()
@@ -162,6 +164,7 @@ async def main():
                                 feed_health["last_classified_ms"]=int(time.time()*1000)
                                 server_signal=signal_engine.on_trade(item)
                                 structure_signal=structure_engine.on_trade(item)
+                                elephant_signal=elephant_engine.on_trade(item)
                                 for outcome in signal_engine.drain_updates():
                                     print("Server outcome: %s %ss signed=%s favorable=%s adverse=%s gap=%s" % (outcome["symbol"],outcome["horizon_seconds"],outcome["signed_move"],outcome["favorable_excursion"],outcome["adverse_excursion"],outcome["data_gap"]),flush=True)
                                     for _,contract,q in tuple(clients):
@@ -180,6 +183,14 @@ async def main():
                                         asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(structure_signal)))
                                         for _,contract,q in tuple(clients):
                                             if contract==structure_signal["symbol"] and not q.full():q.put_nowait(structure_signal)
+                                if elephant_signal:
+                                    signal_engine.alerts[item["symbol"]].append(elephant_signal)
+                                    signal_engine.pending[item["symbol"]].append({"event":elephant_signal,"high":item["price"],"low":item["price"],"last_ts":item["timestamp"],"completed":set()})
+                                    print("Model C Elephant diagnostic: %s %s ratio=%s" % (item["symbol"],elephant_signal["side"],elephant_signal["ratio"]),flush=True)
+                                    if event_in_session(elephant_signal["timestamp"]):
+                                        asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(elephant_signal)))
+                                        for _,contract,q in tuple(clients):
+                                            if contract==elephant_signal["symbol"] and not q.full():q.put_nowait(elephant_signal)
                                 counts["classified"]+=1
                                 counts["classified."+item["symbol"]]+=1
                             if time.monotonic()-last_report>=30:
