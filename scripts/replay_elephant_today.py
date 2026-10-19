@@ -86,6 +86,7 @@ def run(sym):
     finally:elephant_model.time.time=original
     return {"symbol":sym,"trades":trade_count,"quotes":quote_count,
             "classified":classified,"signals":signals,"count":len(signals),
+            "diagnostics":dict(model.diagnostics[sym]),
             "status":"COMPLETE"}
 def main():
     summary={"date":DATE,"timezone":"America/Los_Angeles",
