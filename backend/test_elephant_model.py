@@ -10,7 +10,7 @@ class ElephantTests(unittest.TestCase):
         self.assertEqual(len(e.candidates),0)
     def test_rejects_wickful_bar(self):
         e=ElephantFlowModel()
-        prior=[{"start":i*120000,"h":101,"l":99,"buy":30,"sell":30} for i in range(20)]
+        prior=[{"start":i*120000,"h":101,"l":99,"o":99.5,"c":100.5,"buy":30,"sell":30} for i in range(20)]
         b={"start":20*120000,"last":21*120000+115000,"count":30,
            "o":100,"h":107,"l":99,"c":107,"buy":600,"sell":1}
         e._close("GCZ6",b,prior)
