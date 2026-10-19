@@ -27,9 +27,9 @@ async def main():
             if not hmac.compare_digest(str(hello.get("token","")),access):
                 print("Flow browser rejected: token mismatch",flush=True)
                 await ws.close(code=1008,reason="Unauthorized");return
-            requested=hello.get("symbol")
+            requested=str(hello.get("symbol","")).strip().upper()
             if requested not in symbols:
-                print("Flow browser rejected: unsupported contract",flush=True)
+                print("Flow browser rejected: unsupported contract requested=%s allowed=%s" % (requested,",".join(symbols)),flush=True)
                 await ws.close(code=1008,reason="Unknown contract");return
             queue=asyncio.Queue(maxsize=MAX_CLIENT_QUEUE)
             clients.add((ws,requested,queue))
