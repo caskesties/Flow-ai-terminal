@@ -78,7 +78,7 @@ async def main():
                                         else:queue.put_nowait(outgoing)
                     retry=2
             except (OSError,websockets.exceptions.WebSocketException,RuntimeError,ValueError) as exc:
-                print("Massive stream disconnected:",type(exc).__name__,flush=True)
+                print("Massive stream disconnected: %s code=%s reason=%s" % (type(exc).__name__,getattr(exc,"code",getattr(getattr(exc,"rcvd",None),"code","n/a")),str(getattr(exc,"reason",getattr(getattr(exc,"rcvd",None),"reason","")))[:120]),flush=True)
                 for client,_,_ in tuple(clients):
                     try:await client.close(code=1012,reason="Upstream restarting")
                     except Exception:pass
