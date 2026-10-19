@@ -74,7 +74,7 @@ class ElephantFlowModel:
         # Strictly larger body than each of the last three completed 2-minute bars.
         previous_bodies=[abs(x["c"]-x["o"]) for x in prior[-3:]]
         body=abs(bar["c"]-bar["o"])
-        if span<avg*1.8 or span<=0 or body<=max(previous_bodies):return
+        if span<=0 or body<=max(previous_bodies):return
         self.diagnostics[sym]["body_size"]+=1
         buy=bar["buy"];sell=bar["sell"];total=buy+sell
         if total<=0:return
