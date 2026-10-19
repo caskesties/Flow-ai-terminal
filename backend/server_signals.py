@@ -76,6 +76,8 @@ class ServerFlowSignals:
             record["low"]=min(record["low"],trade["price"])
             for seconds in (5,15,30,60):
                 if seconds in record["completed"] or ts-event["timestamp"]<seconds*1000:continue
+                delay=ts-event["timestamp"]-seconds*1000
+                delayed=delay>2000
                 sign=1 if event["side"]=="buy" else -1
                 entry=event["price"]
                 favorable=(record["high"]-entry) if sign==1 else (entry-record["low"])
@@ -87,7 +89,8 @@ class ServerFlowSignals:
                     "adverse_excursion":round(max(0,adverse),6),
                     "reversal_observed":favorable>0 and signed<0,
                     "data_gap":bool(record.get("gap_detected",False)),
-                    "status":"GAP_IN_DATA" if record.get("gap_detected",False) else "OBSERVED",
+                    "observation_delay_ms":delay,
+                    "status":"GAP_IN_DATA" if record.get("gap_detected",False) else "DELAYED_OBSERVATION" if delayed else "OBSERVED",
                     "units":"price_points","method":"classified_trades_only"}
                 event.setdefault("outcomes",{})[str(seconds)]=update
                 record["completed"].add(seconds)
