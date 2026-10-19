@@ -12,9 +12,29 @@ class ElephantTests(unittest.TestCase):
         e=ElephantFlowModel()
         prior=[{"start":i*120000,"h":101,"l":99,"o":99.5,"c":100.5,"buy":30,"sell":30} for i in range(20)]
         b={"start":20*120000,"last":21*120000+115000,"count":30,
-           "o":100,"h":107,"l":99,"c":107,"buy":600,"sell":1}
+           "o":100,"h":107,"l":99,"c":106.5,"buy":600,"sell":1,"waves":{}}
         e._close("GCZ6",b,prior)
         self.assertNotIn("GCZ6",e.candidates)
+    def test_strong_close_with_opposite_wick_is_accepted_as_bar(self):
+        e=ElephantFlowModel()
+        prior=[{"start":i*120000,"h":101,"l":99,"o":99.5,"c":100.5,
+                "buy":30,"sell":30} for i in range(20)]
+        waves={2:{"buy":120,"sell":10},6:{"buy":120,"sell":10}}
+        b={"start":20*120000,"last":21*120000+119000,"count":80,
+           "o":100,"h":107,"l":99,"c":106.75,"buy":650,"sell":30,"waves":waves}
+        e._close("MNQZ6",b,prior)
+        self.assertEqual(e.diagnostics["MNQZ6"]["wickless"],1)
+        self.assertEqual(e.diagnostics["MNQZ6"]["delta"],1)
+        self.assertEqual(e.diagnostics["MNQZ6"]["waves"],1)
+    def test_closing_wick_above_one_tick_rejected(self):
+        e=ElephantFlowModel()
+        prior=[{"start":i*120000,"h":101,"l":99,"o":99.5,"c":100.5,
+                "buy":30,"sell":30} for i in range(20)]
+        b={"start":20*120000,"last":21*120000+119000,"count":80,
+           "o":100,"h":107,"l":99,"c":106.5,"buy":650,"sell":30,
+           "waves":{2:{"buy":120,"sell":10},6:{"buy":120,"sell":10}}}
+        e._close("MNQZ6",b,prior)
+        self.assertEqual(e.diagnostics["MNQZ6"]["wickless"],0)
     def test_no_early_notification_from_partial_bar(self):
         e=ElephantFlowModel()
         with patch("elephant_model.time.time",return_value=10):
