@@ -60,7 +60,7 @@ class ElephantFlowModel:
                             "relative_range":c["relative_range"],"previous_reference_bars":3,
                             "confirmation":"5s above/below breakout; continuation"},
                 "level_type":c["level_type"],"level":c["level"],"large_flow_waves":c["large_flow_waves"],"institution_identity_verified":False,
-                "reason":"Barra 2m fechando no extremo dos 3 candles anteriores +/-1 tick, com fechamento ate 1 tick da extremidade e corpo solido; agressao alinhada, nivel rompido e sustentado por 5s. Diagnostico experimental."}
+                "reason":"Barra 2m fechando no extremo dos 3 candles anteriores +/-1 tick, com fechamento ate 3 ticks da extremidade no Nasdaq (1 tick em outros ativos) e corpo solido; agressao alinhada, nivel rompido e sustentado por 5s. Diagnostico experimental."}
     def _close(self,sym,bar,previous):
         # Require a completed interval with prices throughout, and enough historical bars.
         self.diagnostics[sym]["closed"]+=1
@@ -89,7 +89,8 @@ class ElephantFlowModel:
         if side=="buy" and bar["c"]<level-tick-1e-7:return
         if side=="sell" and bar["c"]>level+tick+1e-7:return
         closing_wick=bar["h"]-bar["c"] if side=="buy" else bar["c"]-bar["l"]
-        if closing_wick < -1e-7 or closing_wick>tick+1e-7:return
+        closing_wick_tolerance = 3*tick if sym.startswith(("NQ","MNQ")) else tick
+        if closing_wick < -1e-7 or closing_wick>closing_wick_tolerance+1e-7:return
         # At least 80% of the whole candle must be real body; large opposing
         # rejection wicks should not qualify as a solid Elephant Bar.
         if body/span<.80:return
