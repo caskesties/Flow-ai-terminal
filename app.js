@@ -148,7 +148,7 @@ const abnormal=baseline.length>=8&&spikeRatio>=1.8&&burstShare>=.55&&burstSide!=
 const noGap=arr.length>1&&arr.every((t,i)=>i===0||t.timestamp-arr[i-1].timestamp<=2000);
 const liquidityOK=volume>=60&&rate>=2;
 const qualityOK=fresh&&noGap&&liquidityOK&&(source!=='live'||rejected<10);
-$('filterState').textContent='Qualidade: '+(qualityOK?'OK':'BLOQUEADA')+' · '+(symbol()==='NQ'||symbol()==='MNQ'?(treasuryTicks.length&&Math.abs(Date.now()-treasuryTicks[treasuryTicks.length-1].timestamp)<=10000?'Treasury: preço ZN recente; direção não garantida':'Treasury: ausente ou atrasado'):symbol()==='GC'||symbol()==='MGC'?'juros: não aplicável neste filtro':'DI1: '+(diFresh?'sincronizado':'ausente/fora de sincronia'))+' · referência: 12 segundos (histórico por horário ainda não disponível)'+' · rejeitados: '+rejected;
+$('filterState').textContent='Qualidade: '+(qualityOK?'OK':'BLOQUEADA')+' · '+(symbol()==='NQ'||symbol()==='MNQ'?(treasuryTicks.length&&Math.abs(Date.now()-treasuryTicks[treasuryTicks.length-1].timestamp)<=10000?'Treasury: preço ZN recente; direção não garantida':'Treasury: ausente ou atrasado'):symbol()==='GC'||symbol()==='MGC'?'juros: não aplicável neste filtro':'DI1: '+(diFresh?'sincronizado':'ausente/fora de sincronia'))+' · referência curta: 12s (picos); histórico comparativo: '+(trades.length>1?Math.max(0,Math.round((trades[trades.length-1].timestamp-trades[0].timestamp)/1000)):0)+'s recebidos (mín. 120s válidos); histórico por horário indisponível'+' · rejeitados: '+rejected;
 // Confluência de curtíssimo prazo: agressão NOVA, resposta de preço e DI1 sincronizado.
 // Janelas de 1/3/5s são independentes do delta acumulado móvel de 60s.
 const shortFlow=ms=>{const a=trades.filter(t=>t.timestamp>now-ms&&t.timestamp<=now);return {delta:a.reduce((v,t)=>v+(t.side==='buy'?t.size:-t.size),0),volume:a.reduce((v,t)=>v+t.size,0),arr:a};};
@@ -196,9 +196,10 @@ const nasdaqRateOK=!isNasdaq||(yieldDirection!==0&&yieldDirection===-nasdaqDirec
 const nasdaqBurstOK=!isNasdaq||(priorSpan>=120000&&Number.isFinite(nasdaqRatio)&&nasdaqRatio>=1.8&&nasdaqShare>=.65&&nasdaqDirection!==0);
 const nasdaqAligned=!isNasdaq||(nasdaqDirection===sign&&nasdaqRateOK&&nasdaqBurstOK);
 if(isNasdaq){
- $('diStatus').textContent=!treasuryFresh?'ZN / US10Y ausente ou atrasado':yieldDirection===0?'Treasury sem direção suficiente':yieldDirection<0?'ZN em alta (proxy de yield em queda)':'ZN em queda (proxy de yield em alta)';
- $('burstStatus').textContent=Number.isFinite(nasdaqRatio)?fmt(nasdaqRatio,2)+'× média agressora dos 3 min anteriores':'Aguardando 3 minutos de referência';
- $('confluence').textContent=nasdaqAligned?'CONFLUÊNCIA NASDAQ + JUROS':!treasuryFresh?'SEM TREASURY: sinais bloqueados':'Aguardando confluência de juros e agressão';
+ $('diStatus').textContent=!treasuryFresh?'ZN / US10Y ausente ou atrasado':yieldDirection===0?(!Number.isFinite(treasuryDelta)?'Treasury: faltam 2 leituras separadas por 1,5–5s':'Treasury: variação abaixo do limiar ('+fmt(Math.abs(treasuryDelta),4)+' / '+fmt(minYieldMove,4)+')'):yieldDirection<0?'ZN em alta (proxy de yield em queda)':'ZN em queda (proxy de yield em alta)';
+ const coverageSec=Math.round(priorSpan/1000); const totalSec=trades.length>1?Math.round((trades[trades.length-1].timestamp-trades[0].timestamp)/1000):0;
+  $('burstStatus').textContent=Number.isFinite(nasdaqRatio)?fmt(nasdaqRatio,2)+'× média agressora (base '+coverageSec+'s; '+priorNasdaq.length+' negócios)': 'Histórico '+totalSec+'s; base anterior '+coverageSec+'s / 120s mín. ('+priorNasdaq.length+' negócios)'+(priorSpan>=120000?' · volume por lado insuficiente':' · referência insuficiente');
+ $('confluence').textContent=nasdaqAligned?'CONFLUÊNCIA NASDAQ + JUROS':!qualityOK?'Bloqueado: qualidade do feed':!treasuryFresh?'Bloqueado: Treasury ausente/atrasado':yieldDirection===0?'Aguardando direção confirmada do Treasury':priorSpan<120000?'Aguardando histórico comparativo ≥120s':!nasdaqBurstOK?'Aguardando agressão anormal ≥1,8× e predomínio ≥65%':nasdaqDirection!==sign?'Aguardando preço acompanhar agressão':'Aguardando confluência juros/agressão';
 }
 const diConfirmed=symbol()!=='WIN'||diAligned;
 const impulse=rate>=2&&imbal>=.2&&aligned&&Math.abs(move)>=c.tick*2;
