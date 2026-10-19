@@ -20,7 +20,7 @@ def to_ns(hour,minute):
     return int(dt.replace(hour=hour,minute=minute).astimezone(timezone.utc).timestamp()*1e9)
 START=to_ns(5,45) # warm-up for 20 complete 2m bars
 ANALYZE=to_ns(6,30)
-END=to_ns(8,30)
+END=to_ns(12,0)
 KEY=os.environ["MASSIVE_API_KEY"]
 def events(sym,kind):
     params=urllib.parse.urlencode({"timestamp.gte":START,"timestamp.lt":END,"limit":50000,"sort":"timestamp.asc"})
@@ -90,7 +90,7 @@ def run(sym):
             "status":"COMPLETE"}
 def main():
     summary={"date":DATE,"timezone":"America/Los_Angeles",
-             "window":"06:30-08:30","preload":"05:45-06:30","results":[]}
+             "window":"06:30-12:00","preload":"05:45-06:30","results":[]}
     for sym in SYMBOLS:
         try: row=run(sym)
         except Exception as exc:
