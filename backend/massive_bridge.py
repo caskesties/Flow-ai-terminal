@@ -87,7 +87,7 @@ async def main():
                 clients.clear()
                 await asyncio.sleep(retry)
                 retry=min(retry*2,60)
-    async with websockets.serve(browser,"0.0.0.0",int(os.getenv("PORT",os.getenv("FLOW_BRIDGE_PORT","8765"))),max_size=10000,ping_interval=20):
+    async with websockets.serve(browser,"0.0.0.0",int(os.getenv("FLOW_BRIDGE_PORT","8765")),max_size=10000,ping_interval=20):
         print("Private Flow bridge running; TLS reverse proxy required",flush=True)
         await provider()
 if __name__=="__main__":asyncio.run(main())
