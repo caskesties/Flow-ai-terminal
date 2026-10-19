@@ -45,7 +45,7 @@ class ElephantFlowModel:
         if len(follow)<5:return None
         same=sum(x["size"] for x in follow if x["side"]==c["side"])
         volume=sum(x["size"] for x in follow)
-        if not volume or same/volume<.65:return None
+        if not volume or same/volume<.60:return None
         if (c["side"]=="buy" and px<=c["price"]) or (c["side"]=="sell" and px>=c["price"]):
             return None
         key=(sym,c["side"])
@@ -95,7 +95,7 @@ class ElephantFlowModel:
         if body/span<.80:return
         self.diagnostics[sym]["wickless"]+=1
         strength=(buy if side=="buy" else sell)/total
-        if strength<.65:return
+        if strength<.60:return
         prev_volume=sum(x[side] for x in prior)/len(prior)
         ratio=(buy if side=="buy" else sell)/max(prev_volume,1)
         if ratio<1.8:return
@@ -104,7 +104,7 @@ class ElephantFlowModel:
         baseline=sum(x[side] for x in prior)/len(prior)/24
         qualifying=[bucket for bucket,w in bar["waves"].items()
                     if w[side]>=max(1,baseline*1.8)
-                    and w[side]/max(w["buy"]+w["sell"],1)>=.65]
+                    and w[side]/max(w["buy"]+w["sell"],1)>=.60]
         qualifying.sort()
         if not any(b-a>=2 for i,a in enumerate(qualifying) for b in qualifying[i+1:]):return
         self.diagnostics[sym]["waves"]+=1
