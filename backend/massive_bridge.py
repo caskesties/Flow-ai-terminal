@@ -60,7 +60,7 @@ async def main():
             queue=asyncio.Queue(maxsize=MAX_CLIENT_QUEUE)
             clients.add((ws,requested,queue))
             print("Flow browser authenticated for %s" % requested,flush=True)
-            await ws.send(json.dumps({"type":"ready","contract":requested,"classification":"estimated","server_analysis":"experimental"}))
+            await ws.send(json.dumps({"type":"ready","contract":requested,"classification":"estimated","server_analysis":"experimental","push_public_key":push_alerts.PUBLIC_KEY}))
             for alert in signal_engine.recent_alerts(requested):
                 await ws.send(json.dumps(alert))
             try:
