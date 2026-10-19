@@ -12,7 +12,7 @@ async def main():
     api_key=os.environ["MASSIVE_API_KEY"]
     access=os.environ["FLOW_BRIDGE_TOKEN"]
     if len(access)<24:raise SystemExit("FLOW_BRIDGE_TOKEN must be at least 24 characters")
-    symbols=[s.strip().upper() for s in os.getenv("MASSIVE_SYMBOLS","GCZ6").split(",") if s.strip()]
+    symbols=[s.strip().upper() for s in os.getenv("MASSIVE_SYMBOLS","GCZ6,MGCZ6").split(",") if s.strip()]
     if not symbols or any(not s.isalnum() for s in symbols):raise SystemExit("Invalid dated futures symbols")
     classifier=FlowClassifier()
     counts=Counter()
@@ -29,6 +29,7 @@ async def main():
                 print("Flow browser rejected: token mismatch",flush=True)
                 await ws.close(code=1008,reason="Unauthorized");return
             requested=str(hello.get("symbol","")).strip().upper()
+            paired=bool(hello.get("paired")) and requested.startswith("MGC")
             if requested not in symbols:
                 matches=[contract for contract in symbols if contract.startswith(requested) and len(contract)>len(requested)]
                 if len(matches)==1:requested=matches[0]
@@ -79,10 +80,11 @@ async def main():
                                 last_report=time.monotonic()
                             if item:
                                 for client,sym,queue in tuple(clients):
-                                    if sym==item["symbol"]:
+                                    if sym==item["symbol"] or (sym.startswith("MGC") and item["symbol"]==sym.replace("MGC","GC",1)):
                                         outgoing=dict(item)
                                         outgoing["contract"]=sym
-                                        outgoing["symbol"]=next((p for p in ("MNQ","MGC","NQ","GC","ZN") if sym.startswith(p)),sym)
+                                        outgoing["symbol"]=next((p for p in ("MNQ","MGC","NQ","GC","ZN") if item["symbol"].startswith(p)),item["symbol"])
+                                        outgoing["reference"]=item["symbol"]!=sym
                                         if queue.full():
                                             await client.close(code=1013,reason="Slow client, reconnect")
                                             clients.discard((client,sym,queue))
