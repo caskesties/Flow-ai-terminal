@@ -174,12 +174,17 @@ $('shortConfluence').className=shortConfluence?(shortSign>0?'up':'down'):'muted'
 // excluding the latest 5s. Only generate signals with synchronized live rate proxy.
 const isNasdaq=symbol()==='NQ'||symbol()==='MNQ';
 const treasuryLast=treasuryTicks[treasuryTicks.length-1];
-const treasuryPast=treasuryLast?treasuryTicks.find(t=>t.timestamp>=treasuryLast.timestamp-5000):null;
-const treasuryDelta=treasuryLast&&treasuryPast&&treasuryPast.timestamp<=treasuryLast.timestamp-1500?treasuryLast.value-treasuryPast.value:NaN;
 const treasuryFresh=!!treasuryLast&&Math.abs(now-treasuryLast.timestamp)<=10000&&(source!=='live'||Date.now()-treasuryLast.timestamp<=10000);
-const yieldChange=treasuryLast?.symbol==='ZN'?-treasuryDelta:treasuryDelta;
-const minYieldMove=treasuryLast?.symbol==='ZN'?.015:.002;
-const yieldDirection=treasuryFresh&&Number.isFinite(yieldChange)&&Math.abs(yieldChange)>=minYieldMove?Math.sign(yieldChange):0;
+const treasuryWindows=[2000,5000,10000].map(ms=>{
+ const previous=treasuryLast?[...treasuryTicks].reverse().find(t=>t.symbol===treasuryLast.symbol&&treasuryLast.timestamp-t.timestamp>=ms*.8&&treasuryLast.timestamp-t.timestamp<=ms*1.5):null;
+ const change=previous?treasuryLast.value-previous.value:NaN;
+ const threshold=treasuryLast?.symbol==='ZN'?.015625:.002;
+ return {ms,change,valid:!!previous,direction:Number.isFinite(change)&&Math.abs(change)>=threshold?Math.sign(change):0};
+});
+const longWindows=treasuryWindows.filter(w=>w.ms>=5000&&w.direction!==0);
+const contradictory=longWindows.length>1&&longWindows.some(w=>w.direction!==longWindows[0].direction);
+const treasuryPriceDirection=treasuryFresh&&longWindows.length&&!contradictory?longWindows[0].direction:0;
+const yieldDirection=treasuryLast?.symbol==='ZN'?-treasuryPriceDirection:treasuryPriceDirection;
 const recentNasdaq=trades.filter(t=>t.timestamp>now-5000);
 const priorNasdaq=trades.filter(t=>t.timestamp<=now-5000&&t.timestamp>now-185000);
 const nasdaqBuy=recentNasdaq.reduce((v,t)=>v+(t.side==='buy'?t.size:0),0);
@@ -196,7 +201,7 @@ const nasdaqRateOK=!isNasdaq||(yieldDirection!==0&&yieldDirection===-nasdaqDirec
 const nasdaqBurstOK=!isNasdaq||(priorSpan>=120000&&Number.isFinite(nasdaqRatio)&&nasdaqRatio>=1.8&&nasdaqShare>=.65&&nasdaqDirection!==0);
 const nasdaqAligned=!isNasdaq||(nasdaqDirection===sign&&nasdaqRateOK&&nasdaqBurstOK);
 if(isNasdaq){
- $('diStatus').textContent=!treasuryFresh?'ZN / US10Y ausente ou atrasado':yieldDirection===0?(!Number.isFinite(treasuryDelta)?'Treasury: faltam 2 leituras separadas por 1,5–5s':'Treasury: variação abaixo do limiar ('+fmt(Math.abs(treasuryDelta),4)+' / '+fmt(minYieldMove,4)+')'):yieldDirection<0?'ZN em alta (proxy de yield em queda)':'ZN em queda (proxy de yield em alta)';
+ $('diStatus').textContent=!treasuryFresh?'ZN / US10Y ausente ou atrasado':(treasuryLast.symbol==='ZN'?'ZN preço (proxy inverso de yield)':'US10Y yield')+' · '+treasuryWindows.map(w=>(w.ms/1000)+'s '+(w.valid?(w.change>=0?'+':'')+fmt(w.change,4):'sem histórico')).join(' · ')+' · '+(contradictory?'JANELAS CONTRADITÓRIAS':yieldDirection===0?'direção não confirmada':yieldDirection<0?'yield proxy em queda':'yield proxy em alta');
  const coverageSec=Math.round(priorSpan/1000); const totalSec=trades.length>1?Math.round((trades[trades.length-1].timestamp-trades[0].timestamp)/1000):0;
   $('burstStatus').textContent=Number.isFinite(nasdaqRatio)?fmt(nasdaqRatio,2)+'× média agressora (base '+coverageSec+'s; '+priorNasdaq.length+' negócios)': 'Histórico '+totalSec+'s; base anterior '+coverageSec+'s / 120s mín. ('+priorNasdaq.length+' negócios)'+(priorSpan>=120000?' · volume por lado insuficiente':' · referência insuficiente');
  $('confluence').textContent=nasdaqAligned?'CONFLUÊNCIA NASDAQ + JUROS':!qualityOK?'Bloqueado: qualidade do feed':!treasuryFresh?'Bloqueado: Treasury ausente/atrasado':yieldDirection===0?'Aguardando direção confirmada do Treasury':priorSpan<120000?'Aguardando histórico comparativo ≥120s':!nasdaqBurstOK?'Aguardando agressão anormal ≥1,8× e predomínio ≥65%':nasdaqDirection!==sign?'Aguardando preço acompanhar agressão':'Aguardando confluência juros/agressão';
