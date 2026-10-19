@@ -31,7 +31,7 @@ async def main():
     counts=Counter()
     last_report=time.monotonic()
     clients=set()
-    replay=defaultdict(lambda:deque(maxlen=12000))
+    replay=defaultdict(lambda:deque(maxlen=40000))
     relayed=0
     latest_treasury=None
     feed_health={"last_market_event_ms":0,"last_classified_ms":0,"provider_connected":False}
@@ -73,7 +73,7 @@ async def main():
             print("Flow browser authenticated for %s" % requested,flush=True)
             await ws.send(json.dumps({"type":"ready","contract":requested,"classification":"estimated","server_analysis":"experimental","push_public_key":push_alerts.PUBLIC_KEY}))
             now_ms=int(time.time()*1000)
-            snapshot=[row for row in replay[requested] if now_ms-row["timestamp"]<=90000]
+            snapshot=[row for row in replay[requested] if now_ms-row["timestamp"]<=190000]
             print("Flow replay for %s: %d classified prints" % (requested,len(snapshot)),flush=True)
             for offset in range(0,len(snapshot),150):
                 await ws.send(json.dumps({"type":"replay_batch","trades":snapshot[offset:offset+150]}))
