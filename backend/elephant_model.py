@@ -22,12 +22,14 @@ class ElephantFlowModel:
             bars.append({"start":start,"o":px,"h":px,"l":px,"c":px,
                          "buy":0.0,"sell":0.0,"count":0,"last":ts,"waves":{}})
         b=bars[-1];b["h"]=max(b["h"],px);b["l"]=min(b["l"],px)
-        b["c"]=px;b[trade["side"]]+=size;b["count"]+=1;b["last"]=ts
-        bucket=(ts-start)//5000
-        wave=b["waves"].setdefault(bucket,{"buy":0.0,"sell":0.0})
-        wave[trade["side"]]+=size
+        b["c"]=px;b["count"]+=1;b["last"]=ts
+        if trade.get("side") in ("buy","sell"):
+            b[trade["side"]]+=size
+            bucket=(ts-start)//5000
+            wave=b["waves"].setdefault(bucket,{"buy":0.0,"sell":0.0})
+            wave[trade["side"]]+=size
         recent=self.recent[sym]
-        recent.append(trade)
+        if trade.get("side") in ("buy","sell"):recent.append(trade)
         while recent and ts-recent[0]["timestamp"]>190000:recent.popleft()
         c=self.candidates.get(sym)
         if not c:return None
