@@ -146,7 +146,7 @@ const abnormal=baseline.length>=8&&spikeRatio>=1.8&&burstShare>=.55&&burstSide!=
 const noGap=arr.length>1&&arr.every((t,i)=>i===0||t.timestamp-arr[i-1].timestamp<=2000);
 const liquidityOK=volume>=60&&rate>=2;
 const qualityOK=fresh&&noGap&&liquidityOK&&(source!=='live'||rejected<10);
-$('filterState').textContent='Qualidade: '+(qualityOK?'OK':'BLOQUEADA')+' · '+(symbol()==='NQ'||symbol()==='MNQ'?'Treasury: não integrado':symbol()==='GC'||symbol()==='MGC'?'juros: não aplicável neste filtro':'DI1: '+(diFresh?'sincronizado':'ausente/fora de sincronia'))+' · referência: 12 segundos (histórico por horário ainda não disponível)'+' · rejeitados: '+rejected;
+$('filterState').textContent='Qualidade: '+(qualityOK?'OK':'BLOQUEADA')+' · '+(symbol()==='NQ'||symbol()==='MNQ'?(treasuryTicks.length&&Math.abs(Date.now()-treasuryTicks[treasuryTicks.length-1].timestamp)<=10000?'Treasury: preço ZN recente; direção não garantida':'Treasury: ausente ou atrasado'):symbol()==='GC'||symbol()==='MGC'?'juros: não aplicável neste filtro':'DI1: '+(diFresh?'sincronizado':'ausente/fora de sincronia'))+' · referência: 12 segundos (histórico por horário ainda não disponível)'+' · rejeitados: '+rejected;
 // Confluência de curtíssimo prazo: agressão NOVA, resposta de preço e DI1 sincronizado.
 // Janelas de 1/3/5s são independentes do delta acumulado móvel de 60s.
 const shortFlow=ms=>{const a=trades.filter(t=>t.timestamp>now-ms&&t.timestamp<=now);return {delta:a.reduce((v,t)=>v+(t.side==='buy'?t.size:-t.size),0),volume:a.reduce((v,t)=>v+t.size,0),arr:a};};
