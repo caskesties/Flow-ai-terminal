@@ -83,12 +83,17 @@ class ElephantFlowModel:
         support=min(x["l"] for x in prior[-10:])
         level=resistance if side=="buy" else support
         crossed=bar["o"]<=level<bar["c"] if side=="buy" else bar["o"]>=level>bar["c"]
-        # Fibonacci confluence must coincide with the crossed support/resistance;
-        # don't treat merely being near a fib while away from breakout as enough.
-        fib_near=min(fibs,key=lambda f:abs(f-level))
-        tolerance=min(avg*.25,(hi-lo)*.025)
-        if not crossed or abs(fib_near-level)>tolerance:return
+        # Accept either a validated support/resistance breakout OR a Fibonacci
+        # crossing, but never just proximity to a level without crossing it.
+        fib_cross=[f for f in fibs if
+                   (bar["o"]<=f<bar["c"] if side=="buy" else bar["o"]>=f>bar["c"])]
+        if not crossed and not fib_cross:return
+        if crossed:
+            level_type="support_resistance_breakout"
+        else:
+            level=min(fib_cross,key=lambda x:abs(bar["c"]-x))
+            level_type="fibonacci_cross"
         self.candidates[sym]={"closed_at":bar["start"]+120000,"side":side,
            "price":bar["c"],"open":bar["o"],"high":bar["h"],"low":bar["l"],
            "relative_range":round(span/avg,2),"ratio":round(ratio,2),
-           "level":level,"level_type":"support_resistance_with_fibonacci"}
+           "level":level,"level_type":level_type}
