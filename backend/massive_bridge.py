@@ -57,10 +57,13 @@ async def main():
                             if item:
                                 for client,sym,queue in tuple(clients):
                                     if sym==item["symbol"]:
+                                        outgoing=dict(item)
+                                        outgoing["contract"]=sym
+                                        outgoing["symbol"]=next((p for p in ("MNQ","MGC","NQ","GC","ZN") if sym.startswith(p)),sym)
                                         if queue.full():
                                             await client.close(code=1013,reason="Slow client, reconnect")
                                             clients.discard((client,sym,queue))
-                                        else:queue.put_nowait(item)
+                                        else:queue.put_nowait(outgoing)
                     retry=2
             except (OSError,websockets.exceptions.WebSocketException,RuntimeError,ValueError) as exc:
                 print("Massive stream disconnected:",type(exc).__name__,flush=True)
