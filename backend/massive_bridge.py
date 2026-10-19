@@ -17,6 +17,7 @@ from collections import Counter,defaultdict,deque
 import websockets
 from flow_classifier import FlowClassifier
 from server_signals import ServerFlowSignals
+from structure_model import StructureFlowModel
 import push_alerts
 
 MAX_CLIENT_QUEUE=1000
@@ -28,6 +29,7 @@ async def main():
     if not symbols or any(not s.isalnum() for s in symbols):raise SystemExit("Invalid dated futures symbols")
     classifier=FlowClassifier()
     signal_engine=ServerFlowSignals()
+    structure_engine=StructureFlowModel()
     counts=Counter()
     last_report=time.monotonic()
     clients=set()
@@ -53,6 +55,13 @@ async def main():
             if not hmac.compare_digest(str(hello.get("token","")),access):
                 print("Flow browser rejected: token mismatch",flush=True)
                 await ws.close(code=1008,reason="Unauthorized");return
+            if hello.get("type")=="push_test":
+                success=bool(push_alerts.enabled() and push_alerts.SUBSCRIPTIONS)
+                if success:
+                    await push_alerts.deliver({"title":"FLOW · TESTE DE NOTIFICAÇÃO","body":"Teste técnico de push. NÃO é um sinal de mercado nem recomendação de entrada.","tag":"flow-push-test","url":"./index.html"})
+                await ws.send(json.dumps({"type":"push_test_result","success":success,"reason":"Envio solicitado; entrega no iPhone não confirmada" if success else "Push não configurado ou sem assinaturas ativas"}))
+                await ws.close(code=1000)
+                return
             if hello.get("type")=="push_subscribe":
                 try:
                     push_alerts.add(hello.get("subscription"))
@@ -148,6 +157,7 @@ async def main():
                                 replay[item["symbol"]].append(dict(item))
                                 feed_health["last_classified_ms"]=int(time.time()*1000)
                                 server_signal=signal_engine.on_trade(item)
+                                structure_signal=structure_engine.on_trade(item)
                                 for outcome in signal_engine.drain_updates():
                                     print("Server outcome: %s %ss signed=%s favorable=%s adverse=%s gap=%s" % (outcome["symbol"],outcome["horizon_seconds"],outcome["signed_move"],outcome["favorable_excursion"],outcome["adverse_excursion"],outcome["data_gap"]),flush=True)
                                     for _,contract,q in tuple(clients):
@@ -158,6 +168,14 @@ async def main():
                                         asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(server_signal)))
                                     for _,contract,q in tuple(clients):
                                         if contract==server_signal["symbol"] and not q.full():q.put_nowait(server_signal)
+                                if structure_signal:
+                                    signal_engine.alerts[item["symbol"]].append(structure_signal)
+                                    signal_engine.pending[item["symbol"]].append({"event":structure_signal,"high":item["price"],"low":item["price"],"last_ts":item["timestamp"],"completed":set()})
+                                    print("Model B structure diagnostic: %s %s ratio=%s" % (item["symbol"],structure_signal["side"],structure_signal["ratio"]),flush=True)
+                                    if within_session():
+                                        asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(structure_signal)))
+                                    for _,contract,q in tuple(clients):
+                                        if contract==structure_signal["symbol"] and not q.full():q.put_nowait(structure_signal)
                                 counts["classified"]+=1
                                 counts["classified."+item["symbol"]]+=1
                             if time.monotonic()-last_report>=30:
