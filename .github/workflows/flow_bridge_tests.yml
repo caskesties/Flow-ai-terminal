@@ -1,0 +1,21 @@
+name: Flow Massive bridge unit tests
+on:
+  push:
+    paths:
+      - "backend/**"
+      - ".github/workflows/flow_bridge_tests.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile backend
+        run: python -m compileall -q backend
+      - name: Run BBO flow classification tests
+        run: cd backend && python -m unittest -v test_flow_classifier.py
