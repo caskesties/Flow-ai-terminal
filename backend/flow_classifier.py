@@ -14,7 +14,7 @@ class FlowClassifier:
         typ=event.get("ev"); sym=event.get("sym")
         if not sym or typ not in ("Q","T"):return None
         if typ=="Q":
-            try: ts=int(event["t"]); bid=float(event["bp"]); ask=float(event["ap"])
+            try: ts=int(max(event.get("bt",0),event.get("at",0)) or event["t"]); bid=float(event["bp"]); ask=float(event["ap"])
             except (ValueError,TypeError,KeyError):return None
             if bid<=0 or ask<=bid:return None
             old=self.quotes.get(sym)
