@@ -21,6 +21,16 @@ async def main():
     last_report=time.monotonic()
     clients=set()
     relayed=0
+    feed_health={"last_market_event_ms":0,"last_classified_ms":0,"provider_connected":False}
+    async def health_loop():
+        while True:
+            await asyncio.sleep(1)
+            now=int(time.time()*1000)
+            age=now-feed_health["last_market_event_ms"] if feed_health["last_market_event_ms"] else None
+            status="LIVE" if feed_health["provider_connected"] and age is not None and age<=3000 else "STALE"
+            event={"type":"feed_health","status":status,"provider_connected":feed_health["provider_connected"],"last_market_event_ms":feed_health["last_market_event_ms"],"last_classified_ms":feed_health["last_classified_ms"],"age_ms":age,"server_timestamp":now}
+            for _,_,q in tuple(clients):
+                if not q.full():q.put_nowait(event)
     async def browser(ws):
         # Token is sent in initial auth message, not in URL/query logs.
         try:
@@ -60,6 +70,7 @@ async def main():
                 async with websockets.connect("wss://socket.massive.com/futures",ping_interval=20,max_size=4_000_000) as ws:
                     await ws.send(json.dumps({"action":"auth","params":api_key}))
                     authorized=False
+                    feed_health["provider_connected"]=False
                     async for raw in ws:
                         data=json.loads(raw)
                         for msg in data if isinstance(data,list) else [data]:
@@ -67,6 +78,7 @@ async def main():
                                 if msg.get("status")=="auth_success":
                                     print("Massive authentication OK",flush=True)
                                     authorized=True
+                                    feed_health["provider_connected"]=True
                                     channels=",".join(kind+"."+sym for sym in symbols for kind in ("T","Q"))
                                     await ws.send(json.dumps({"action":"subscribe","params":channels}))
                                 if msg.get("status")=="auth_failed":raise RuntimeError("Massive authorization failed")
@@ -77,6 +89,7 @@ async def main():
                                 continue
                             if not authorized:continue
                             if msg.get("ev") in ("T","Q"):
+                                feed_health["last_market_event_ms"]=int(time.time()*1000)
                                 counts[msg["ev"]]+=1
                                 counts[msg["ev"]+"."+str(msg.get("sym","unknown"))]+=1
                             if msg.get("ev")=="T" and str(msg.get("sym","")).startswith("ZN"):
@@ -100,6 +113,7 @@ async def main():
                                 except (KeyError,TypeError,ValueError):pass
                             item=classifier.process(msg)
                             if item:
+                                feed_health["last_classified_ms"]=int(time.time()*1000)
                                 server_signal=signal_engine.on_trade(item)
                                 for outcome in signal_engine.drain_updates():
                                     print("Server outcome: %s %ss signed=%s favorable=%s adverse=%s gap=%s" % (outcome["symbol"],outcome["horizon_seconds"],outcome["signed_move"],outcome["favorable_excursion"],outcome["adverse_excursion"],outcome["data_gap"]),flush=True)
@@ -129,6 +143,7 @@ async def main():
                                         else:queue.put_nowait(outgoing)
                     retry=15
             except (OSError,websockets.exceptions.WebSocketException,RuntimeError,ValueError) as exc:
+                feed_health["provider_connected"]=False
                 print("Massive stream disconnected: %s code=%s reason=%s" % (type(exc).__name__,getattr(exc,"code",getattr(getattr(exc,"rcvd",None),"code","n/a")),str(getattr(exc,"reason",getattr(getattr(exc,"rcvd",None),"reason","")))[:120]),flush=True)
                 for client,_,_ in tuple(clients):
                     try:await client.close(code=1012,reason="Upstream restarting")
@@ -138,5 +153,7 @@ async def main():
                 retry=min(retry*2,60)
     async with websockets.serve(browser,"0.0.0.0",int(os.getenv("FLOW_BRIDGE_PORT","8765")),max_size=10000,ping_interval=60,ping_timeout=60):
         print("Private Flow bridge running on port %s; TLS reverse proxy required" % os.getenv("FLOW_BRIDGE_PORT","8765"),flush=True)
-        await provider()
+        watchdog=asyncio.create_task(health_loop())
+        try:await provider()
+        finally:watchdog.cancel()
 if __name__=="__main__":asyncio.run(main())
