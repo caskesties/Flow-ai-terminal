@@ -73,6 +73,14 @@ async def main():
                             if msg.get("ev") in ("T","Q"):
                                 counts[msg["ev"]]+=1
                                 counts[msg["ev"]+"."+str(msg.get("sym","unknown"))]+=1
+                            if msg.get("ev")=="T" and str(msg.get("sym","")).startswith("ZN"):
+                                try:
+                                    zn_price=float(msg["p"]);zn_time=int(msg["t"])
+                                    if zn_price>0:
+                                        zn_event={"symbol":"ZN","timestamp":zn_time,"price":zn_price,"contract":str(msg["sym"]),"source":"ZN futures last trade"}
+                                        for _,contract,q in tuple(clients):
+                                            if contract.startswith(("MNQ","NQ")) and not q.full():q.put_nowait(zn_event)
+                                except (KeyError,TypeError,ValueError):pass
                             item=classifier.process(msg)
                             if item:
                                 counts["classified"]+=1
