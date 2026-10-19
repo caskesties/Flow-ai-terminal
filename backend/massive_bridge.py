@@ -81,6 +81,15 @@ async def main():
                                         for _,contract,q in tuple(clients):
                                             if contract.startswith(("MNQ","NQ")) and not q.full():q.put_nowait(zn_event)
                                 except (KeyError,TypeError,ValueError):pass
+                            if msg.get("ev")=="Q" and str(msg.get("sym","")).startswith("ZN"):
+                                try:
+                                    bid=float(msg["bp"]);ask=float(msg["ap"])
+                                    zn_ts=int(max(msg.get("bt",0),msg.get("at",0)) or msg["t"])
+                                    if bid>0 and ask>bid and zn_ts>0:
+                                        zn_quote={"symbol":"ZN","contract":str(msg["sym"]),"timestamp":zn_ts,"price":(bid+ask)/2,"source":"BBO midpoint (derived, not yield)"}
+                                        for _,contract,q in tuple(clients):
+                                            if contract.startswith(("MNQ","NQ")) and not q.full():q.put_nowait(zn_quote)
+                                except (KeyError,TypeError,ValueError):pass
                             item=classifier.process(msg)
                             if item:
                                 counts["classified"]+=1
