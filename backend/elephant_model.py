@@ -10,6 +10,7 @@ class ElephantFlowModel:
         self.recent=defaultdict(lambda:deque(maxlen=20000))
         self.candidates={}
         self.last={}
+        self.diagnostics=defaultdict(lambda:{"closed":0,"body_size":0,"wickless":0,"delta":0,"waves":0,"technical":0,"candidates":0})
     def on_trade(self, trade):
         ts=int(trade["timestamp"]); sym=trade["symbol"]
         px=float(trade["price"]); size=float(trade["size"])
@@ -61,6 +62,7 @@ class ElephantFlowModel:
                 "reason":"Barra 2m maior que os 3 corpos anteriores, sem pavios nos prints classificados; agressao alinhada, nivel rompido e sustentado por 5s. Diagnostico experimental."}
     def _close(self,sym,bar,previous):
         # Require a completed interval with prices throughout, and enough historical bars.
+        self.diagnostics[sym]["closed"]+=1
         if bar["last"]<bar["start"]+115000 or bar["count"]<15 or len(previous)<20:return
         prior=previous[-20:]
         if any(prior[i]["start"]-prior[i-1]["start"]!=120000 for i in range(1,len(prior))):return
@@ -72,6 +74,7 @@ class ElephantFlowModel:
         previous_bodies=[abs(x["c"]-x["o"]) for x in prior[-3:]]
         body=abs(bar["c"]-bar["o"])
         if span<avg*1.8 or span<=0 or body<=max(previous_bodies):return
+        self.diagnostics[sym]["body_size"]+=1
         buy=bar["buy"];sell=bar["sell"];total=buy+sell
         if total<=0:return
         side="buy" if bar["c"]>bar["o"] else "sell" if bar["c"]<bar["o"] else None
@@ -79,11 +82,13 @@ class ElephantFlowModel:
         # Exact zero wicks in classified prints; one tick of shadow disqualifies.
         if side=="buy" and (bar["o"]!=bar["l"] or bar["c"]!=bar["h"]):return
         if side=="sell" and (bar["o"]!=bar["h"] or bar["c"]!=bar["l"]):return
+        self.diagnostics[sym]["wickless"]+=1
         strength=(buy if side=="buy" else sell)/total
         if strength<.65:return
         prev_volume=sum(x[side] for x in prior)/len(prior)
         ratio=(buy if side=="buy" else sell)/max(prev_volume,1)
         if ratio<1.8:return
+        self.diagnostics[sym]["delta"]+=1
         # Separate waves are NOT proof of distinct market participants.
         baseline=sum(x[side] for x in prior)/len(prior)/24
         qualifying=[bucket for bucket,w in bar["waves"].items()
@@ -91,6 +96,7 @@ class ElephantFlowModel:
                     and w[side]/max(w["buy"]+w["sell"],1)>=.65]
         qualifying.sort()
         if not any(b-a>=2 for i,a in enumerate(qualifying) for b in qualifying[i+1:]):return
+        self.diagnostics[sym]["waves"]+=1
         # Previous 20 complete 2m bars: confirmed support/resistance and Fibonacci.
         lo=min(x["l"] for x in prior);hi=max(x["h"] for x in prior)
         fibs=[lo+(hi-lo)*r for r in (.382,.5,.618)]
@@ -108,9 +114,11 @@ class ElephantFlowModel:
         else:
             level=min(fib_cross,key=lambda x:abs(bar["c"]-x))
             level_type="fibonacci_cross"
+        self.diagnostics[sym]["technical"]+=1
         # Reject an opposing structural obstacle immediately beyond the close.
         obstacle=max((x["h"] for x in prior if x["h"]>bar["c"]),default=None) if side=="buy" else min((x["l"] for x in prior if x["l"]<bar["c"]),default=None)
         if obstacle is not None and abs(obstacle-bar["c"])<=avg*.25:return
+        self.diagnostics[sym]["candidates"]+=1
         self.candidates[sym]={"closed_at":bar["start"]+120000,"side":side,
            "large_flow_waves":len(qualifying),
            "price":bar["c"],"open":bar["o"],"high":bar["h"],"low":bar["l"],
