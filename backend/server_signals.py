@@ -49,7 +49,8 @@ class ServerFlowSignals:
             # Require coherent movement in 5s/10s; 2s is diagnostic only.
             decisions=[]
             for window_ms in (5000,10000):
-                older=next((x for x in reversed(self.treasury) if x[2]=="ZN" and window_ms*.8<=newest[0]-x[0]<=window_ms*1.5),None)
+                candidates=[x for x in self.treasury if x[2]=="ZN" and x[0]<newest[0] and window_ms*.75<=newest[0]-x[0]<=window_ms*1.25]
+                older=min(candidates,key=lambda x:abs(newest[0]-x[0]-window_ms)) if candidates else None
                 if older is None:continue
                 change=newest[1]-older[1]
                 if abs(change)>=.015625:decisions.append(1 if change>0 else -1)
