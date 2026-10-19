@@ -20,7 +20,7 @@ function ingestTreasury(m,source){
  if(ts<1e11)ts*=1000;
  const value=Number(sym==='ZN'?m.price:m.rate);
  if(!Number.isFinite(value)||value<=0||!Number.isFinite(ts))return;
- if(source==='live'&&(Date.now()-ts>3000||ts>Date.now()+5000))return;
+ if(source==='live'&&(Date.now()-ts>10000||ts>Date.now()+5000))return;
  const prior=treasuryTicks[treasuryTicks.length-1];
  if(prior&&ts<prior.timestamp)return;
  if(prior&&prior.symbol!==sym)treasuryTicks=[];
@@ -174,7 +174,7 @@ const isNasdaq=symbol()==='NQ'||symbol()==='MNQ';
 const treasuryLast=treasuryTicks[treasuryTicks.length-1];
 const treasuryPast=treasuryLast?treasuryTicks.find(t=>t.timestamp>=treasuryLast.timestamp-5000):null;
 const treasuryDelta=treasuryLast&&treasuryPast&&treasuryPast.timestamp<=treasuryLast.timestamp-1500?treasuryLast.value-treasuryPast.value:NaN;
-const treasuryFresh=!!treasuryLast&&Math.abs(now-treasuryLast.timestamp)<=1500&&(source!=='live'||Date.now()-treasuryLast.timestamp<=3000);
+const treasuryFresh=!!treasuryLast&&Math.abs(now-treasuryLast.timestamp)<=10000&&(source!=='live'||Date.now()-treasuryLast.timestamp<=10000);
 const yieldChange=treasuryLast?.symbol==='ZN'?-treasuryDelta:treasuryDelta;
 const minYieldMove=treasuryLast?.symbol==='ZN'?.015:.002;
 const yieldDirection=treasuryFresh&&Number.isFinite(yieldChange)&&Math.abs(yieldChange)>=minYieldMove?Math.sign(yieldChange):0;
@@ -225,7 +225,7 @@ const tf=$('timeframes');tf.replaceChildren();for(const [name,ms] of [['1m',6000
 if(triggerBroke&&hasEnough&&!breakout)breakout={sign,level:sign>0?buyTrigger:sellTrigger,at:now};if(breakout&&now-breakout.at<30000&&((breakout.sign>0&&price<breakout.level-c.tick)||(breakout.sign<0&&price>breakout.level+c.tick))){if(Date.now()-lastAlert>2500){log('FALSO ROMPIMENTO',breakout.sign>0?'COMPRA':'VENDA',score,'Retorno para dentro do nível');lastAlert=Date.now()}breakout=null}
 if(lastStage==='CONFIRMADO'&&stage!=='CONFIRMADO'&&Date.now()-lastAlert>2500){log('INVALIDADO',side,score,'Perda das condições de confirmação');lastAlert=Date.now()}if((stage==='ANTECIPADO'||stage==='CONFIRMADO')&&stage!==lastStage&&Date.now()-lastAlert>2500){log(stage,side,score,stage==='ANTECIPADO'?'Pré-alerta: pressão emergente':'Preço e agressão alinhados após rompimento');lastAlert=Date.now()}lastStage=stage;
 }
-function updateHealth(source,now,qualityOK,diFresh){const age=Date.now()-now;const live=source==='live',demo=source==='demo';$('healthWin').textContent=live?(age<=3000?'Recebendo · '+Math.round(age)+' ms':'Atrasado'):demo?'DEMO sintética':'CSV histórico';$('healthDI').textContent=symbol()==='NQ'||symbol()==='MNQ'?(treasuryTicks.length&&Math.abs(now-treasuryTicks[treasuryTicks.length-1].timestamp)<=1500?'Treasury sincronizado (preço ZN)':'Treasury ausente'):symbol()!=='WIN'?'Não aplicável':demo?(diFresh?'DI1 fictício':'Aguardando DI1 demo'):source==='csv'?'Não fornecido no CSV':diFresh?'DI1 recente':'Ausente / atrasado';$('healthBook').textContent='Não integrado';$('healthQuality').textContent=qualityOK?'Critérios OK':'Sinais bloqueados';$('healthDetail').textContent='Fonte '+source.toUpperCase()+' · sem book real · DI1 e negócios exigem sincronia. Testes de interface não validam estratégia financeira.';}
+function updateHealth(source,now,qualityOK,diFresh){const age=Date.now()-now;const live=source==='live',demo=source==='demo';$('healthWin').textContent=live?(age<=3000?'Recebendo · '+Math.round(age)+' ms':'Atrasado'):demo?'DEMO sintética':'CSV histórico';$('healthDI').textContent=symbol()==='NQ'||symbol()==='MNQ'?(treasuryTicks.length&&Math.abs(now-treasuryTicks[treasuryTicks.length-1].timestamp)<=10000?'Treasury sincronizado (preço ZN)':'Treasury ausente'):symbol()!=='WIN'?'Não aplicável':demo?(diFresh?'DI1 fictício':'Aguardando DI1 demo'):source==='csv'?'Não fornecido no CSV':diFresh?'DI1 recente':'Ausente / atrasado';$('healthBook').textContent='Não integrado';$('healthQuality').textContent=qualityOK?'Critérios OK':'Sinais bloqueados';$('healthDetail').textContent='Fonte '+source.toUpperCase()+' · sem book real · DI1 e negócios exigem sincronia. Testes de interface não validam estratégia financeira.';}
 function runSelfTest(){const synthetic=[{label:'pressão compradora',buy:850,sell:150,move:20,rateDelta:-.02,expected:1},{label:'pressão vendedora',buy:120,sell:880,move:-20,rateDelta:.02,expected:-1},{label:'absorção possível',buy:850,sell:150,move:0,rateDelta:-.02,expected:0},{label:'DI divergente',buy:800,sell:200,move:15,rateDelta:.02,expected:0}];const outcomes=synthetic.map(x=>{const sign=Math.sign(x.buy-x.sell),aligned=Math.sign(x.move)===sign&&x.move!==0,interest=Math.sign(x.rateDelta)===-sign;return {label:x.label,result:aligned&&interest?sign:0,expected:x.expected}});const passed=outcomes.filter(x=>x.result===x.expected).length;$('selfTestResult').textContent=passed+'/'+outcomes.length+' casos de regra OK (não é backtest)';$('selfTestResult').className=passed===outcomes.length?'up':'down';}
 $('selfTest').onclick=runSelfTest;
 function demo(){
