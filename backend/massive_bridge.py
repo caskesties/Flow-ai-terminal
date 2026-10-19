@@ -56,6 +56,8 @@ async def main():
                                     channels=",".join(kind+"."+sym for sym in symbols for kind in ("T","Q"))
                                     await ws.send(json.dumps({"action":"subscribe","params":channels}))
                                 if msg.get("status")=="auth_failed":raise RuntimeError("Massive authorization failed")
+                                if msg.get("status") in ("error","success"):
+                                    print("Massive subscription status: %s %s" % (msg.get("status"),str(msg.get("message",""))[:160]),flush=True)
                                 continue
                             if not authorized:continue
                             if msg.get("ev") in ("T","Q"):
