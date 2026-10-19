@@ -50,10 +50,10 @@ class ElephantFlowModel:
                 "treasury":"not_required","source":"server_live",
                 "elephant":{"open":c["open"],"high":c["high"],"low":c["low"],"close":c["price"],
                             "timeframe_seconds":120,"wickless":True,
-                            "relative_range":c["relative_range"],
+                            "relative_range":c["relative_range"],"body_larger_than_previous":3,
                             "confirmation":"5s above/below breakout; continuation"},
                 "level_type":c["level_type"],"level":c["level"],
-                "reason":"Barra 2m sem pavios nos prints classificados; agressao alinhada, nivel rompido e sustentado por 5s. Diagnostico experimental."}
+                "reason":"Barra 2m maior que os 3 corpos anteriores, sem pavios nos prints classificados; agressao alinhada, nivel rompido e sustentado por 5s. Diagnostico experimental."}
     def _close(self,sym,bar,previous):
         # Require a completed interval with prices throughout, and enough historical bars.
         if bar["last"]<bar["start"]+115000 or bar["count"]<15 or len(previous)<20:return
@@ -63,7 +63,10 @@ class ElephantFlowModel:
         avg=sum(ranges)/len(ranges)
         if avg<=0:return
         span=bar["h"]-bar["l"]
-        if span<avg*1.8 or span<=0:return
+        # Strictly larger body than each of the last three completed 2-minute bars.
+        previous_bodies=[abs(x["c"]-x["o"]) for x in prior[-3:]]
+        body=abs(bar["c"]-bar["o"])
+        if span<avg*1.8 or span<=0 or body<=max(previous_bodies):return
         buy=bar["buy"];sell=bar["sell"];total=buy+sell
         if total<=0:return
         side="buy" if bar["c"]>bar["o"] else "sell" if bar["c"]<bar["o"] else None
