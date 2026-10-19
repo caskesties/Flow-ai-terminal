@@ -85,18 +85,12 @@ async def main():
         nonlocal last_report
         retry=15
         while True:
-            if not within_session():
-                feed_health["provider_connected"]=False
-                await asyncio.sleep(5)
-                continue
             try:
                 async with websockets.connect("wss://socket.massive.com/futures",ping_interval=20,max_size=4_000_000) as ws:
                     await ws.send(json.dumps({"action":"auth","params":api_key}))
                     authorized=False
                     feed_health["provider_connected"]=False
-                    while within_session():
-                        try:raw=await asyncio.wait_for(ws.recv(),timeout=1)
-                        except asyncio.TimeoutError:continue
+                    async for raw in ws:
                         data=json.loads(raw)
                         for msg in data if isinstance(data,list) else [data]:
                             if msg.get("ev")=="status":
@@ -146,7 +140,8 @@ async def main():
                                         if contract==outcome["symbol"] and not q.full():q.put_nowait(outcome)
                                 if server_signal:
                                     print("Server flow diagnostic: %s %s ratio=%s clients=%d" % (server_signal["symbol"],server_signal["side"],server_signal["ratio"],len(clients)),flush=True)
-                                    asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(server_signal)))
+                                    if within_session():
+                                        asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(server_signal)))
                                     for _,contract,q in tuple(clients):
                                         if contract==server_signal["symbol"] and not q.full():q.put_nowait(server_signal)
                                 counts["classified"]+=1
@@ -167,8 +162,6 @@ async def main():
                                             await client.close(code=1013,reason="Slow client, reconnect")
                                             clients.discard((client,sym,queue))
                                         else:queue.put_nowait(outgoing)
-                    feed_health["provider_connected"]=False
-                    print("Flow scheduled window ended; pausing provider until next Pacific session",flush=True)
                     retry=15
             except (OSError,websockets.exceptions.WebSocketException,RuntimeError,ValueError) as exc:
                 feed_health["provider_connected"]=False
