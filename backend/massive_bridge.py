@@ -3,6 +3,16 @@ Requires a private TLS reverse proxy and server-side Massive key.
 Never serve this directly to the public internet.
 """
 import asyncio,json,os,time
+from datetime import datetime,time as clock_time
+from zoneinfo import ZoneInfo
+
+PACIFIC=ZoneInfo('America/Los_Angeles')
+def within_session(now=None):
+    local=(now or datetime.now(PACIFIC)).astimezone(PACIFIC)
+    if local.weekday()>=5:return False
+    t=local.time()
+    return clock_time(6,29)<=t<clock_time(8,30) or clock_time(16,30)<=t<clock_time(20,0)
+
 from collections import Counter
 import websockets
 from flow_classifier import FlowClassifier
@@ -75,12 +85,18 @@ async def main():
         nonlocal last_report
         retry=15
         while True:
+            if not within_session():
+                feed_health["provider_connected"]=False
+                await asyncio.sleep(5)
+                continue
             try:
                 async with websockets.connect("wss://socket.massive.com/futures",ping_interval=20,max_size=4_000_000) as ws:
                     await ws.send(json.dumps({"action":"auth","params":api_key}))
                     authorized=False
                     feed_health["provider_connected"]=False
-                    async for raw in ws:
+                    while within_session():
+                        try:raw=await asyncio.wait_for(ws.recv(),timeout=1)
+                        except asyncio.TimeoutError:continue
                         data=json.loads(raw)
                         for msg in data if isinstance(data,list) else [data]:
                             if msg.get("ev")=="status":
@@ -151,6 +167,8 @@ async def main():
                                             await client.close(code=1013,reason="Slow client, reconnect")
                                             clients.discard((client,sym,queue))
                                         else:queue.put_nowait(outgoing)
+                    feed_health["provider_connected"]=False
+                    print("Flow scheduled window ended; pausing provider until next Pacific session",flush=True)
                     retry=15
             except (OSError,websockets.exceptions.WebSocketException,RuntimeError,ValueError) as exc:
                 feed_health["provider_connected"]=False
