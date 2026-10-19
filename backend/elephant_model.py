@@ -20,9 +20,12 @@ class ElephantFlowModel:
         if not bars or bars[-1]["start"]!=start:
             if bars:self._close(sym,bars[-1],list(bars)[:-1])
             bars.append({"start":start,"o":px,"h":px,"l":px,"c":px,
-                         "buy":0.0,"sell":0.0,"count":0,"last":ts})
+                         "buy":0.0,"sell":0.0,"count":0,"last":ts,"waves":{}})
         b=bars[-1];b["h"]=max(b["h"],px);b["l"]=min(b["l"],px)
         b["c"]=px;b[trade["side"]]+=size;b["count"]+=1;b["last"]=ts
+        bucket=(ts-start)//5000
+        wave=b["waves"].setdefault(bucket,{"buy":0.0,"sell":0.0})
+        wave[trade["side"]]+=size
         recent=self.recent[sym]
         recent.append(trade)
         while recent and ts-recent[0]["timestamp"]>190000:recent.popleft()
@@ -52,7 +55,7 @@ class ElephantFlowModel:
                             "timeframe_seconds":120,"wickless":True,
                             "relative_range":c["relative_range"],"body_larger_than_previous":3,
                             "confirmation":"5s above/below breakout; continuation"},
-                "level_type":c["level_type"],"level":c["level"],
+                "level_type":c["level_type"],"level":c["level"],"large_flow_waves":c["large_flow_waves"],"institution_identity_verified":False,
                 "reason":"Barra 2m maior que os 3 corpos anteriores, sem pavios nos prints classificados; agressao alinhada, nivel rompido e sustentado por 5s. Diagnostico experimental."}
     def _close(self,sym,bar,previous):
         # Require a completed interval with prices throughout, and enough historical bars.
@@ -79,6 +82,13 @@ class ElephantFlowModel:
         prev_volume=sum(x[side] for x in prior)/len(prior)
         ratio=(buy if side=="buy" else sell)/max(prev_volume,1)
         if ratio<1.8:return
+        # Separate waves are NOT proof of distinct market participants.
+        baseline=sum(x[side] for x in prior)/len(prior)/24
+        qualifying=[bucket for bucket,w in bar["waves"].items()
+                    if w[side]>=max(1,baseline*1.8)
+                    and w[side]/max(w["buy"]+w["sell"],1)>=.65]
+        qualifying.sort()
+        if not any(b-a>=2 for i,a in enumerate(qualifying) for b in qualifying[i+1:]):return
         # Previous 20 complete 2m bars: confirmed support/resistance and Fibonacci.
         lo=min(x["l"] for x in prior);hi=max(x["h"] for x in prior)
         fibs=[lo+(hi-lo)*r for r in (.382,.5,.618)]
@@ -96,7 +106,11 @@ class ElephantFlowModel:
         else:
             level=min(fib_cross,key=lambda x:abs(bar["c"]-x))
             level_type="fibonacci_cross"
+        # Reject an opposing structural obstacle immediately beyond the close.
+        obstacle=max((x["h"] for x in prior if x["h"]>bar["c"]),default=None) if side=="buy" else min((x["l"] for x in prior if x["l"]<bar["c"]),default=None)
+        if obstacle is not None and abs(obstacle-bar["c"])<=avg*.25:return
         self.candidates[sym]={"closed_at":bar["start"]+120000,"side":side,
+           "large_flow_waves":len(qualifying),
            "price":bar["c"],"open":bar["o"],"high":bar["h"],"low":bar["l"],
            "relative_range":round(span/avg,2),"ratio":round(ratio,2),
            "level":level,"level_type":level_type}
