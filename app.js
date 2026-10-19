@@ -95,7 +95,7 @@ if(fibSnapshot){
  fibNear=fibSnapshot.levels.reduce((best,x)=>!best||Math.abs(price-x.value)<Math.abs(price-best.value)?x:best,null);
  $('fibDirection').textContent=(fibSnapshot.up?'Impulso de alta':'Impulso de baixa')+' · '+fmt(fibSnapshot.low,d)+' → '+fmt(fibSnapshot.high,d)+' · referência congelada por 30s';
  $('fibLevels').textContent=fibSnapshot.levels.map(x=>fmt(x.ratio*100,1)+'% '+fmt(x.value,d)).join(' · ');
- $('fibStatus').textContent='Nível próximo: '+fmt(fibNear.ratio*100,1)+'% em '+fmt(fibNear.value,d)+' · distância '+fmt(Math.abs(price-fibNear.value)/c.tick,0)+' ticks · observação, sem confirmação isolada';
+ const fib50=fibSnapshot.levels.find(x=>x.ratio===.5).value,fib618=fibSnapshot.levels.find(x=>x.ratio===.618).value;const inPriority=price>=Math.min(fib50,fib618)-c.tick&&price<=Math.max(fib50,fib618)+c.tick;$('fibStatus').textContent=(inPriority?'ZONA PRIORITÁRIA 50–61,8% · ':'Fora da zona prioritária · ')+'nível próximo '+fmt(fibNear.ratio*100,1)+'% em '+fmt(fibNear.value,d)+' · Fibonacci isolado não confirma entrada';
 }else{
  $('fibDirection').textContent='Aguardando extremos ordenados no tempo';
  $('fibLevels').textContent='—';
