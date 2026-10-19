@@ -25,12 +25,15 @@ async def main():
             hello=json.loads(raw)
             import hmac
             if not hmac.compare_digest(str(hello.get("token","")),access):
+                print("Flow browser rejected: token mismatch",flush=True)
                 await ws.close(code=1008,reason="Unauthorized");return
             requested=hello.get("symbol")
             if requested not in symbols:
+                print("Flow browser rejected: unsupported contract",flush=True)
                 await ws.close(code=1008,reason="Unknown contract");return
             queue=asyncio.Queue(maxsize=MAX_CLIENT_QUEUE)
             clients.add((ws,requested,queue))
+            print("Flow browser authenticated for %s" % requested,flush=True)
             await ws.send(json.dumps({"type":"ready","contract":requested,"classification":"estimated"}))
             try:
                 while True:
