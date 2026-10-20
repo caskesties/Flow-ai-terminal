@@ -618,7 +618,7 @@ function updateFocusDashboard(){
   const kind=afterEntry?'EXAUSTÃO POSSÍVEL':'ABSORÇÃO POSSÍVEL';
   put('focusAbsorption',kind+' · OBSERVAR '+reverse);
   if(!absorptionWatch||absorptionWatch.side!==aside||last-absorptionWatch.at>30000)
-   absorptionWatch={side:aside,at:last,high:Math.max(...aw.map(t=>t.price)),low:Math.min(...aw.map(t=>t.price))};
+   absorptionWatch={side:aside,at:last,high:Math.max(...aw.map(t=>t.price)),low:Math.min(...aw.map(t=>t.price)),alertedWeakening:false};
   if(radarAlertsAllowed&&Date.now()-absorptionAlertAt>30000){
    log(kind,reverse,0,'Delta acelerando sem deslocamento junto ao nível '+fmt(boundary,2)+'; reversão não confirmada');
    absorptionAlertAt=Date.now();
@@ -629,6 +629,14 @@ function updateFocusDashboard(){
   const deltaRecent=signed(recent);
   const reversed=recent.length>=5&&(reverse==='buy'?deltaRecent>=20:deltaRecent<=-20);
   const broke=reverse==='buy'?price>watch.high+aTick:price<watch.low-aTick;
+  // A declining recent SAME-SIDE delta impulse while price stays near the defended region
+  // is an earlier, unconfirmed reversal observation. Do not require opposite-side aggression yet.
+  const prior5=trades.filter(t=>t.timestamp>=last-10000&&t.timestamp<last-5000);
+  const sameSideRecent=watch.side==='buy'?deltaRecent:-deltaRecent;
+  const sameSidePrior=watch.side==='buy'?signed(prior5):-signed(prior5);
+  const weakening=prior5.length>=5&&recent.length>=5&&sameSidePrior>=35&&
+    sameSideRecent<=sameSidePrior*.60;
+  const priceHeld=price>=watch.low-3*aTick&&price<=watch.high+3*aTick;
   if(reversed&&broke){
    const sideLabel=reverse==='buy'?'COMPRA':'VENDA';
    put('focusAbsorption','REVERSÃO '+sideLabel+' · FLUXO E PREÇO');
@@ -637,6 +645,17 @@ function updateFocusDashboard(){
     absorptionAlertAt=Date.now();
    }
    absorptionWatch=null;
+  }else if(weakening&&priceHeld){
+    const sideLabel=reverse==='buy'?'COMPRA':'VENDA';
+    put('focusAbsorption','ABSORÇÃO + DELTA ENFRAQUECENDO · OBSERVAR '+sideLabel);
+    if(!watch.alertedWeakening){
+      watch.alertedWeakening=true;
+      if(radarAlertsAllowed&&Date.now()-absorptionAlertAt>=5000){
+        log('DELTA PERDENDO FORÇA APÓS ABSORÇÃO',sideLabel,0,
+          'Agressão anterior diminuiu ≥40% com preço retido na região; reversão ainda não confirmada');
+        absorptionAlertAt=Date.now();
+      }
+    }
   }else put('focusAbsorption','ABSORÇÃO DETECTADA · AGUARDAR REVERSÃO');
  }else{
   put('focusAbsorption','SEM ABSORÇÃO DETECTADA');
