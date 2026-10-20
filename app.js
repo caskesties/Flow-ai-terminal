@@ -418,7 +418,7 @@ function updateFocusDashboard(){
  put('focusConfluenceNote',active?'Condições em observação':'Entrada ainda bloqueada');
  put('focusEntry',active?status:'AGUARDAR');
  put('focusRisk',value('stopPrice')+' / '+value('target1'));
- const card=$('focusEntry');if(card)card.style.color=active?(up?'#40d69c':'#ff7388'):'#e7effb';
+ const card=$('focusEntry');if(card)card.style.color=active?(up?'#078e65':'#ca3854'):'#193148';
 }
 let focusRenderPending=false;
 function scheduleFocusRefresh(){
