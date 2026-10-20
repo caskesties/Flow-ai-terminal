@@ -404,6 +404,12 @@ function updateFocusDashboard(){
  const signed=(arr)=>arr.reduce((n,t)=>n+(t.side==='buy'?1:-1)*(Number(t.size)||0),0);
  const delta120=signed(windowTrades);
  put('focusDelta',windowTrades.length?((delta120>0?'+':'')+fmt(delta120)):'—');
+ if($('focusDelta')){
+   const badge=$('focusDelta');
+   badge.classList.add('delta-badge');
+   badge.classList.remove('delta-positive','delta-negative','delta-neutral');
+   badge.classList.add(!windowTrades.length||!Number.isFinite(delta120)||delta120===0?'delta-neutral':delta120>0?'delta-positive':'delta-negative');
+ }
  const waveStats=(from,to)=>{
    const a=last?trades.filter(t=>t.timestamp>=last-to&&t.timestamp<last-from&&(t.side==='buy'||t.side==='sell')):[];
    const total=a.reduce((n,t)=>n+(Number(t.size)||0),0);
