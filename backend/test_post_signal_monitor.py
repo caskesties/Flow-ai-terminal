@@ -19,7 +19,7 @@ class PostSignalMonitorTests(unittest.TestCase):
             self.assertFalse(x["exit_size_recommended"])
     def test_reversal_needs_opposing_flow_and_adverse_move(self):
         self.feed(101000,15,650,102.0,"buy")
-        found=self.feed(112000,15,350,lambda i: 102.0-i*.35,"sell",20)
+        found=self.feed(112000,30,350,lambda i: 102.0-i*.25,"sell",30)
         self.assertTrue(any(x["stage"]=="POSSIBLE_REVERSAL" for x in found))
         self.assertFalse(any(x["stage"]=="POSSIBLE_REVERSAL" for x in self.feed(120000,10,400,96,"sell")))
     def test_no_alert_on_stale_signal(self):
