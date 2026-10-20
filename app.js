@@ -452,6 +452,33 @@ function updateFocusDashboard(){
  put('focusConfluence',confirmations.filter(Boolean).length+' / 5');
  put('focusConfluenceNote',active?'Condições em observação':'Entrada ainda bloqueada');
  put('focusEntry',active?status:'AGUARDAR');
+ // Independent trend-pullback observation. Uses completed 2m bars only;
+ // does not mark an entry confirmed without matching flow and Treasury.
+ const currentTime=trades.length?trades[trades.length-1].timestamp:0;
+ const current2m=Math.floor(currentTime/120000)*120000;
+ const bars2m=[];
+ if(currentTime){
+   for(let k=4;k>=1;k--){
+     const start=current2m-k*120000,end=start+120000;
+     const points=trades.filter(t=>t.timestamp>=start&&t.timestamp<end);
+     if(points.length>=12&&points[points.length-1].timestamp-points[0].timestamp>=60000)
+       bars2m.push({high:Math.max(...points.map(t=>t.price)),low:Math.min(...points.map(t=>t.price)),close:points[points.length-1].price});
+   }
+ }
+ const downTrend=bars2m.length===4&&bars2m[1].high<bars2m[0].high&&bars2m[2].high<bars2m[1].high&&bars2m[2].low<bars2m[1].low;
+ const rebound=downTrend&&bars2m[3].high>bars2m[2].close&&bars2m[3].high<bars2m[1].high;
+ const resumeSell=rebound&&price<bars2m[3].close&&price<bars2m[3].high-config[symbol()].tick*4;
+ const flowSell=first.side==='sell'&&second.side==='sell'&&first.share>=.57&&second.share>=.57;
+ const pullbackCandidate=resumeSell&&flowSell;
+ if(pullbackCandidate&&!active){
+   const confirmedByTreasury=treasuryReady&&/QUEDA|BAIXA|FAVORAVEL VENDA|FAVORÁVEL VENDA/i.test(treasury);
+   put('focusEntry',confirmedByTreasury?'VENDA EXPERIMENTAL · REVISAR':'POSSÍVEL VENDA · AGUARDAR TREASURY');
+   put('focusDirection','↓');
+   put('focusDirectionText',confirmedByTreasury?'VENDA EXPERIMENTAL':'POSSÍVEL VENDA');
+   put('focusDirectionNote','Repique rejeitado + duas ondas vendedoras');
+   put('radarInterpretation','Repique rejeitado em tendência de baixa · pesquisa');
+ }
+
  put('focusRisk',value('stopPrice')+' / '+value('target1'));
  const card=$('focusEntry');if(card)card.style.color=active?(up?'#078e65':'#ca3854'):'#193148';
 }
