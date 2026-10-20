@@ -456,6 +456,40 @@ function updateFocusDashboard(){
  else if(stall)explanation='Possível absorção: agressão sem deslocamento · não confirmada';
  else if(windowTrades.length>=12)explanation='Contexto de 2 min · ondas recentes sem confirmação';
  put('radarInterpretation',explanation);
+
+ // Independent rolling 5-minute aggression radar; the original 2m signal logic is unchanged.
+ const trades5m=last?trades.filter(t=>t.timestamp>=last-300000&&t.timestamp<=last&&(t.side==='buy'||t.side==='sell')):[];
+ const volume5m=trades5m.reduce((n,t)=>n+(Number(t.size)||0),0);
+ const buy5m=trades5m.reduce((n,t)=>n+(t.side==='buy'?(Number(t.size)||0):0),0);
+ const share5m=volume5m?Math.round(buy5m/volume5m*100):null;
+ putNum('radarBuy5m',share5m);putNum('radarSell5m',share5m===null?null:100-share5m);
+ if($('radarBuyBar5m'))$('radarBuyBar5m').style.width=(share5m??50)+'%';
+ if($('radarSellBar5m'))$('radarSellBar5m').style.width=(share5m===null?50:100-share5m)+'%';
+ const delta5m=signed(trades5m);
+ put('focusDelta5m',trades5m.length?(delta5m>0?'+':'')+fmt(delta5m):'—');
+ const badge5=$('focusDelta5m');
+ if(badge5){
+   badge5.classList.add('metric-outline');
+   badge5.classList.remove('delta-badge','delta-positive','delta-negative','delta-neutral','metric-positive','metric-negative','metric-neutral');
+   badge5.classList.add(!trades5m.length||delta5m===0?'metric-neutral':delta5m>0?'metric-positive':'metric-negative');
+ }
+ // Short burst/pressure values remain on their explicitly labeled 3s/30s windows.
+ put('radarWave15m',fmtWave(first));put('radarWave25m',fmtWave(second));
+ setRadarCardTone('radarWave15m',waveTone(first));setRadarCardTone('radarWave25m',waveTone(second));
+ put('radarAcceleration5m',value('radarAcceleration'));
+ const pressure5=$('radarAcceleration5m');
+ if(pressure5){
+   pressure5.classList.add('metric-outline');
+   pressure5.classList.remove('metric-positive','metric-negative','metric-neutral');
+   pressure5.classList.add(recentShare===null||recent30.length<5?'metric-neutral':recentShare>=57?'metric-positive':recentShare<=43?'metric-negative':'metric-neutral');
+ }
+ const price5m=trades5m.length>=2?trades5m[trades5m.length-1].price-trades5m[0].price:null;
+ put('radarPriceMove5m',price5m==null?'—':(price5m>0?'+':'')+fmt(price5m,2)+' pt');
+ setRadarCardTone('radarPriceMove5m',price5m==null||!Number.isFinite(price5m)?null:price5m>0?'buy':price5m<0?'sell':null);
+ put('focusVolume5m',trades5m.length?fmt(volume5m):'—');
+ const sample5m=trades5m.length>=12&&volume5m>=40;
+ put('focusBias5m',!sample5m?'AMOSTRA INSUFICIENTE':share5m>=57?'COMPRADORES':share5m<=43?'VENDEDORES':'EQUILÍBRIO');
+ put('radarInterpretation5m',!sample5m?'Coletando fluxo suficiente para análise':share5m>=57?'Contexto de 5 min · predominância compradora · entrada não confirmada':share5m<=43?'Contexto de 5 min · predominância vendedora · entrada não confirmada':'Contexto de 5 min · equilíbrio entre compradores e vendedores');
  const status=value('signal'),up=/COMPRA|ALTA/i.test(status),down=/VENDA|BAIXA/i.test(status);
  const blocked=/BLOQUEAD|SEM ENTRADA|AGUARD|PARADO/i.test(status)||!/Recebendo|DEMO|CSV/i.test(value('healthWin'));
  const active=!blocked&&(up||down);
