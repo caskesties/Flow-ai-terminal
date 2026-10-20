@@ -257,7 +257,7 @@ if(early&&riskCheckQuick()&&now-lastEarly>=5000){log('PRÉ-ALERTA 2–3s (ALVO)'
 function riskCheckQuick(){if(symbol()!=='WIN')return true;const points=Math.ceil((Math.max(...trades.slice(-50).map(x=>x.price))-Math.min(...trades.slice(-50).map(x=>x.price)))/c.tick)*c.tick+2*c.tick;return points<=Math.min(200,Math.max(5,Number($('maxStop').value)||200));}
 const last=trades.slice(-50),swing=sign>0?Math.min(...last.map(x=>x.price)):Math.max(...last.map(x=>x.price)),riskTicks=Math.ceil(Math.abs(price-swing)/c.tick)+2,risk=riskTicks*c.tick,limit=Number($('maxStop').value),riskValid=symbol()!=='WIN'||(Number.isFinite(limit)&&limit>0&&risk<=limit),side=sign>0?'COMPRA':sign<0?'VENDA':'NEUTRO';
 let stage=confirmed?'CONFIRMADO':confluenceEarly?'CONFLUÊNCIA ANTECIPADA':early?'PRESSÃO ANORMAL':pre?'ANTECIPADO':'OBSERVAÇÃO';if(!riskValid&&stage!=='OBSERVAÇÃO')stage='BLOQUEADO · STOP';if(!qualityOK)stage='BLOQUEADO · QUALIDADE';if(isNasdaq&&!nasdaqAligned)stage='BLOQUEADO · JUROS/FLUXO';
-$('price').textContent=fmt(price,d);$('sourceTag').textContent=source==='live'?'WSS · NÃO VERIFICADO':source==='csv'?'REPLAY HISTÓRICO':'DEMO · ARTIFICIAL';$('priceHint').textContent=source==='live'?'Feed externo não auditado':source==='csv'?'Reprodução de CSV':'Preço sintético';$('buyPct').textContent=percent+'%';$('sellPct').textContent=100-percent+'%';$('buyBar').style.width=percent+'%';$('sellBar').style.width=100-percent+'%';$('delta').textContent=(delta>0?'+':'')+fmt(delta);$('heroDelta').textContent=(delta>0?'+':'')+fmt(delta);$('heroDelta').className=delta>0?'up':delta<0?'down':'neutral';$('heroDeltaTrend').textContent=delta>0?'Predomínio comprador':delta<0?'Predomínio vendedor':'Agressões equilibradas';$('delta').className=delta>0?'up':delta<0?'down':'neutral';$('volume').textContent=fmt(volume);$('rate').textContent=fmt(rate,1);$('score').textContent=score+'/100';$('confidence').textContent='Força heurística '+score+'/100 · não é taxa de acerto';$('stage').textContent=stage;
+$('price').textContent=fmt(price,d);$('sourceTag').textContent=source==='live'?(Date.now()-now>3000?'DADOS ATRASADOS':!qualityOK?'QUALIDADE BLOQUEADA':'WSS · CONECTADO'):source==='csv'?'REPLAY HISTÓRICO':'DEMO · ARTIFICIAL';$('priceHint').textContent=source==='live'?'Feed externo não auditado':source==='csv'?'Reprodução de CSV':'Preço sintético';$('buyPct').textContent=percent+'%';$('sellPct').textContent=100-percent+'%';$('buyBar').style.width=percent+'%';$('sellBar').style.width=100-percent+'%';$('delta').textContent=(delta>0?'+':'')+fmt(delta);$('heroDelta').textContent=(delta>0?'+':'')+fmt(delta);$('heroDelta').className=delta>0?'up':delta<0?'down':'neutral';$('heroDeltaTrend').textContent=delta>0?'Predomínio comprador':delta<0?'Predomínio vendedor':'Agressões equilibradas';$('delta').className=delta>0?'up':delta<0?'down':'neutral';$('volume').textContent=fmt(volume);$('rate').textContent=fmt(rate,1);$('score').textContent=score+'/100';$('confidence').textContent='Força heurística '+score+'/100 · não é taxa de acerto';$('stage').textContent=stage;
 $('signal').textContent=stage==='CONFIRMADO'?'POSSÍVEL '+side:stage==='ANTECIPADO'||stage==='PRESSÃO ANORMAL'||stage==='CONFLUÊNCIA ANTECIPADA'?'ATENÇÃO '+side:stage.startsWith('BLOQUEADO')?'SEM ENTRADA':'AGUARDAR';$('signal').className='signal '+(stage==='CONFIRMADO'||(stage==='ANTECIPADO'||stage==='PRESSÃO ANORMAL'||stage==='CONFLUÊNCIA ANTECIPADA')?(sign>0?'up':'down'):'neutral');
 const validEntry=stage==='CONFIRMADO'&&riskValid&&nasdaqAligned;for(const id of ['entry','stopPrice','risk','target1','target2'])$(id).textContent='—';if(validEntry){$('entry').textContent=fmt(price,d);$('stopPrice').textContent=fmt(price-sign*risk,d);$('risk').textContent=fmt(risk,d)+(symbol()==='WIN'||isNasdaq?' pts':' USD/oz');if(symbol()==='WIN'){$('target1').textContent=fmt(price+sign*300);$('target2').textContent=fmt(price+sign*400)}}
 $('breakLevel').textContent=Number.isFinite(level)?fmt(level,d):'Sem nível validado';$('flowNarrative').textContent='Agressão '+side.toLowerCase()+' · delta '+fmt(delta)+' · deslocamento '+(aligned?'alinhado':'não confirmado')+' · '+fmt(rate,1)+' negócios/s.';
@@ -346,6 +346,16 @@ function updateFocusDashboard(){
  put('focusInstrument',$('instrument')?.selectedOptions?.[0]?.textContent||'MNQ');
  put('focusPrice',value('price'));
  put('focusFeed',value('healthWin'));
+ const badge=$('sourceTag');
+ if(badge&&$('source')?.value==='ws'){
+   const fresh=ws?.readyState===WebSocket.OPEN&&lastIngest>0&&Date.now()-lastIngest<=3000;
+   const quality=value('healthQuality');
+   const blocked=/bloquead/i.test(quality);
+   badge.textContent=!fresh?'DADOS ATRASADOS':blocked?'QUALIDADE BLOQUEADA':'WSS · CONECTADO';
+   badge.style.background=!fresh||blocked?'#fff1d9':'#dff7ed';
+   badge.style.color=!fresh||blocked?'#805522':'#096c50';
+ }
+
  put('focusBuy',value('buyPct'));put('focusSell',value('sellPct'));
  if($('focusBuyBar'))$('focusBuyBar').style.width=$('buyBar')?.style.width||'50%';
  if($('focusSellBar'))$('focusSellBar').style.width=$('sellBar')?.style.width||'50%';
