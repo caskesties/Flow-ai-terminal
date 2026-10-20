@@ -20,9 +20,9 @@ class WaveResearchTests(unittest.TestCase):
         engine=WaveResearch()
         events=[]
         for i in range(25):
-            # The earlier segment is mostly buyers, the later segment mostly sellers.
+            # Alternating directions never establish two high-share waves.
             events.extend(engine.on_trade({"symbol":"MNQZ6","timestamp":100000+i*500,"price":100.0,
-                                           "side":"buy" if i<13 else "sell","size":3}))
+                                           "side":"buy" if i%2 else "sell","size":3}))
         self.assertFalse([e for e in events if e["type"]=="wave_research"])
 
     def test_measurement_does_not_emit_trade_signal(self):
