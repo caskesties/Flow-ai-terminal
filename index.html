@@ -71,6 +71,45 @@ a{color:#216ba7}
 .radar-interpret{margin-top:9px;font-size:11px;color:#536c84;font-weight:700;line-height:1.4}
 .radar-foot{font-size:10px;color:#617990;margin-top:6px}
 .radar-foot #focusVolume{display:inline!important;font-size:11px!important;height:auto!important;line-height:normal!important;overflow:visible!important;color:#193148!important}
+
+/* Compact phone viewport: preserve the two radars and actionable signal. */
+@media(max-width:600px){
+ main{padding:4px 8px 18px!important}
+ .compact-header{gap:2px!important;margin:0 1px 3px!important}
+ .compact-header .brand{font-size:15px!important;line-height:1.1}
+ .compact-header .brand small{font-size:10px!important}
+ .compact-header .muted{font-size:9px!important;line-height:1.15}
+ .compact-header .pill{padding:3px 6px!important;font-size:9px!important}
+ .focus-head,.focus-pressure,.focus-flow.focus-radar,.focus-entry{margin-top:5px!important;border-radius:12px!important;box-shadow:none!important}
+ .focus-head{padding:5px 9px!important}
+ .focus-head strong{font-size:18px!important;line-height:1.1}
+ .focus-price strong{font-size:20px!important}
+ .focus-head .muted,.focus-price small{font-size:10px!important}
+ .focus-pressure{padding:6px 9px!important}
+ .focus-label{font-size:10px!important;margin-bottom:2px!important}
+ .focus-pressure-line b{font-size:16px!important}
+ .focus-pressure-line .bar{height:9px!important}
+ .focus-flow.focus-radar{padding:7px 9px!important}
+ .focus-radar .row>b{font-size:14px!important}
+ .focus-radar .pill{font-size:9px!important;padding:3px 5px!important}
+ .radar-share,.radar-metrics{margin-top:4px!important;gap:6px!important}
+ .radar-share strong{font-size:21px!important;line-height:1.08!important}
+ .radar-share small,.radar-metrics small,.radar-waves small{font-size:9px!important;line-height:1.1!important}
+ .radar-bar{height:8px!important;margin-top:4px!important}
+ .radar-metrics strong{font-size:15px!important;line-height:1.05!important}
+ .radar-metrics strong.metric-outline{padding:3px 9px!important;min-height:30px!important}
+ .radar-waves{gap:4px!important;margin-top:5px!important}
+ .radar-waves>div{padding:4px 2px!important;min-height:37px!important;border-radius:9px!important}
+ .radar-waves strong{font-size:14px!important;line-height:1.1!important;margin-top:2px!important}
+ .radar-interpret{font-size:10px!important;line-height:1.15!important;margin-top:4px!important}
+ .radar-foot{font-size:9px!important;margin-top:3px!important;line-height:1.1!important}
+ .radar-foot strong{font-size:11px!important}
+ .focus-entry{padding:7px 10px!important;grid-template-columns:1fr!important}
+ .focus-entry strong{font-size:17px!important;margin-top:2px!important}
+ .focus-entry small{font-size:10px!important}
+ .advanced-details{margin-top:5px!important}
+ .advanced-details summary{padding:9px!important;font-size:12px!important}
+}
 </style><script>if('serviceWorker' in navigator){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!sessionStorage.getItem('flow-reload-radar5m-v1')){sessionStorage.setItem('flow-reload-radar5m-v1','1');location.reload()}})}</script></head><body><main><header class="row compact-header"><div><div class="brand">FLOW <em>AI</em> TERMINAL <small>GELO · v4</small></div><div class="muted">Leitura quantitativa de fluxo e liquidez • WIN / GC / MGC / NQ / MNQ</div></div><span class="pill" id="sourceTag">DEMO • ARTIFICIAL</span></header>
 
 
