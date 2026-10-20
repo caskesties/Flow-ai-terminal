@@ -330,7 +330,6 @@ if($('bridgeToken')){$('bridgeToken').addEventListener('change',autoStartFlow)}
 setTimeout(autoStartFlow,600);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible'||$('source').value!=='ws')return;if(ws?.readyState===WebSocket.OPEN)return;if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null}resumeConnection=true;reconnectAttempt=0;const token=$('bridgeToken').value.trim();if(token.length>=24)$('start').click();});
 
-const focusDeltaHistory=[];
 function updateFocusDashboard(){
  const put=(id,value)=>{const e=$(id);if(e)e.textContent=value};
  const value=id=>$(id)?.textContent?.trim()||'—';
@@ -347,15 +346,39 @@ function updateFocusDashboard(){
  const volumeMultiplier=compactMatch?Number(compactMatch[1].replace(',','.')):NaN;
  const compactVolume=Number.isFinite(volumeMultiplier)?volumeMultiplier.toLocaleString('pt-BR',{maximumFractionDigits:1,minimumFractionDigits:1})+'×':'—';
  put('focusVolume',compactVolume);
- const clean=Number(value('delta').replace(/\./g,'').replace(',','.').replace(/[^0-9.+-]/g,''));
- if(Number.isFinite(clean)&&value('healthWin').includes('Recebendo')){
-   if(!focusDeltaHistory.length||Date.now()-focusDeltaHistory[focusDeltaHistory.length-1].at>=3000){
-      focusDeltaHistory.push({at:Date.now(),v:clean});if(focusDeltaHistory.length>22)focusDeltaHistory.shift();
-   }
- }
+ // Signed aggressive delta per fixed 3s time bucket; oldest to newest.
+ // A negative bar extends below zero, a positive bar above zero.
  const chart=$('focusHistogram');
- if(chart){chart.replaceChildren();const magnitude=Math.max(1,...focusDeltaHistory.map(x=>Math.abs(x.v)));
-   for(const point of focusDeltaHistory){const bar=document.createElement('i');bar.className=point.v<0?'negative':'';bar.style.height=Math.max(5,Math.abs(point.v)/magnitude*46)+'px';chart.append(bar)}
+ if(chart){
+   chart.replaceChildren();
+   const bucketMs=3000, count=14;
+   const latest=trades.length?trades[trades.length-1].timestamp:0;
+   const lastBucket=latest?Math.floor(latest/bucketMs)*bucketMs:0;
+   const values=Array(count).fill(0), observed=Array(count).fill(false);
+   if(lastBucket){
+     const firstBucket=lastBucket-(count-1)*bucketMs;
+     for(const trade of trades){
+       const index=Math.floor((trade.timestamp-firstBucket)/bucketMs);
+       if(index<0||index>=count)continue;
+       if(trade.side!=='buy'&&trade.side!=='sell')continue;
+       const quantity=Number(trade.size);
+       if(!Number.isFinite(quantity)||quantity<=0)continue;
+       values[index]+=(trade.side==='buy'?quantity:-quantity);
+       observed[index]=true;
+     }
+   }
+   const magnitude=Math.max(1,...values.map(Math.abs));
+   for(let i=0;i<count;i++){
+     const slot=document.createElement('span');
+     slot.className='delta-slot';
+     if(observed[i]&&values[i]!==0){
+       const bar=document.createElement('i');
+       bar.className=values[i]<0?'negative':'positive';
+       bar.style.height=Math.max(2,Math.abs(values[i])/magnitude*21)+'px';
+       slot.append(bar);
+     }
+     chart.append(slot);
+   }
  }
  const status=value('signal'),up=/COMPRA|ALTA/i.test(status),down=/VENDA|BAIXA/i.test(status);
  const blocked=/BLOQUEAD|SEM ENTRADA|AGUARD|PARADO/i.test(status)||!/Recebendo|DEMO|CSV/i.test(value('healthWin'));
