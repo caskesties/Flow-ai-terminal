@@ -3,7 +3,7 @@ from collections import defaultdict, deque
 
 class WaveResearch:
     def __init__(self):
-        self.trades=defaultdict(lambda:deque(maxlen=14000))
+        self.trades=defaultdict(lambda:deque(maxlen=55000))
         self.last_emit={}
         self.pending=defaultdict(list)
         self.updates=[]
@@ -13,7 +13,7 @@ class WaveResearch:
         ts=item["timestamp"]
         rows=self.trades[sym]
         rows.append(item)
-        while rows and ts-rows[0]["timestamp"]>90000:rows.popleft()
+        while rows and ts-rows[0]["timestamp"]>370000:rows.popleft()
         events=self._follow(sym,item)
         if len(rows)<12:return events
         # Nonoverlapping consecutive 3s windows: two independent pressure waves,
@@ -25,21 +25,34 @@ class WaveResearch:
             sell=sum(x["size"] for x in window if x["side"]=="sell")
             total=buy+sell
             result.append((buy,sell,total,len(window)))
-        direction=1 if all(b>0 and b/(b+s)>=.58 for b,s,_,_ in result if b+s) and all(v[2]>=8 and v[3]>=3 for v in result) else -1 if all(s>0 and s/(b+s)>=.58 for b,s,_,_ in result if b+s) and all(v[2]>=8 and v[3]>=3 for v in result) else 0
+        direction=1 if all(b>0 and b/(b+s)>=.57 for b,s,_,_ in result if b+s) and all(v[2]>=8 and v[3]>=3 for v in result) else -1 if all(s>0 and s/(b+s)>=.58 for b,s,_,_ in result if b+s) and all(v[2]>=8 and v[3]>=3 for v in result) else 0
         if not direction:return events
         previous=[x for x in rows if 6000<ts-x["timestamp"]<=20000]
         high=max((x["price"] for x in previous),default=None)
         low=min((x["price"] for x in previous),default=None)
         breakout=bool(previous and (item["price"]>high if direction>0 else item["price"]<low))
+        # Compare independently against the preceding *completed* 2-minute candle.
+        # Never use a still-forming candle (lookahead bias).
+        current_bar=(ts//120000)*120000
+        prev_start=current_bar-120000
+        prev_bar=[x for x in rows if prev_start<=x["timestamp"]<current_bar]
+        prev_span=prev_bar[-1]["timestamp"]-prev_bar[0]["timestamp"] if len(prev_bar)>1 else 0
+        prev_valid=len(prev_bar)>=15 and prev_span>=60000
+        prev_high=max((x["price"] for x in prev_bar),default=None)
+        prev_low=min((x["price"] for x in prev_bar),default=None)
+        breakout_2m=bool(prev_valid and (item["price"]>prev_high if direction>0 else item["price"]<prev_low))
         key=(sym,direction)
         if ts-self.last_emit.get(key,0)<15000:return events
         self.last_emit[key]=ts
         reasons=[]
-        if not breakout:reasons.append("NO_SHORT_BREAKOUT")
+        if not (breakout or breakout_2m):reasons.append("NO_SHORT_OR_PREV_2M_BREAKOUT")
         if sym.startswith(("NQ","MNQ")) and not treasury_fresh:reasons.append("TREASURY_NOT_FRESH")
         event={"type":"wave_research","symbol":sym,"timestamp":ts,"side":"buy" if direction>0 else "sell",
           "price":item["price"],"waves":[{"buy":b,"sell":s,"trades":n,"share":round((b if direction>0 else s)/v,3)} for b,s,v,n in result],
-          "short_breakout":breakout,"treasury_fresh":bool(treasury_fresh),"status":"CANDIDATE_NOT_VALIDATED" if not reasons else "REJECTED",
+          "short_breakout":breakout,"previous_2m_breakout":breakout_2m,
+          "previous_2m_valid":prev_valid,"previous_2m_high":prev_high if prev_valid else None,
+          "previous_2m_low":prev_low if prev_valid else None,
+          "aggression_floor":0.57,"treasury_fresh":bool(treasury_fresh),"status":"CANDIDATE_NOT_VALIDATED" if not reasons else "REJECTED",
           "blockers":reasons,"research_only":True}
         self.pending[sym].append({"event":event,"last_ts":ts,"high":item["price"],"low":item["price"],"done":set(),"gap":False})
         events.append(event)
