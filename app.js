@@ -34,7 +34,7 @@ function ingestTreasury(m,source){
  treasuryQuoteTicks=treasuryQuoteTicks.filter(t=>t.timestamp>=ts-60000).slice(-10000);
  treasuryTradeTicks=treasuryTradeTicks.filter(t=>t.timestamp>=ts-60000).slice(-3000);
 }
-function ingest(m,source){const t=normalize(m,source==='csv');if(!t){rejected++;return;}const id=String(m.trade_id??m.id??'');if(id){if(seenIds.has(id))return;seenIds.add(id);if(seenIds.size>15000)seenIds.clear();}if(trades.length&&t.timestamp<trades[trades.length-1].timestamp-1000)return;trades.push(t);if(trades.length>65000)trades.splice(0,8000);price=t.price;lastIngest=Date.now();render(source);if(source==='live'&&running&&ws?.readyState===WebSocket.OPEN)$('status').textContent='Recebendo '+symbol()+' · último negócio '+new Date(t.timestamp).toLocaleTimeString('pt-BR')}
+function ingest(m,source){const t=normalize(m,source==='csv');if(!t){rejected++;return;}const id=String(m.trade_id??m.id??'');if(id){if(seenIds.has(id))return;seenIds.add(id);if(seenIds.size>15000)seenIds.clear();}if(trades.length&&t.timestamp<trades[trades.length-1].timestamp-1000)return;trades.push(t);if(trades.length>65000)trades.splice(0,8000);price=t.price;lastIngest=Date.now();render(source);if(source==='live')scheduleFocusRefresh();if(source==='live'&&running&&ws?.readyState===WebSocket.OPEN)$('status').textContent='Recebendo '+symbol()+' · último negócio '+new Date(t.timestamp).toLocaleTimeString('pt-BR')}
 function calc(now,windowMs){const arr=trades.filter(t=>t.timestamp>=now-windowMs);let b=0,s=0;for(const t of arr)t.side==='buy'?b+=t.size:s+=t.size;return {arr,b,s,volume:b+s,delta:b-s,span:arr.length>1?now-arr[0].timestamp:0}}
 function render(source){if(!trades.length)return;const now=trades[trades.length-1].timestamp,c=config[symbol()],d=symbol()==='WIN'?0:2,w=calc(now,60000),{b,s,volume,delta,span,arr}=w;const percent=volume?Math.round(b/volume*100):50,sign=Math.sign(delta),move=price-arr[0].price,aligned=sign!==0&&Math.sign(move)===sign,rate=arr.length/Math.max(1,span/1000),imbal=volume?Math.abs(delta)/volume:0,level=$('level').value.trim()?Number($('level').value):NaN,broke=Number.isFinite(level)&&(sign>0?price>level:sign<0?price<level:false),hasEnough=arr.length>=24&&span>=5000&&volume>=40,fresh=source!=='live'||Date.now()-now<=3000;
 // Níveis congelados durante a janela de observação, evitando gatilho que persiga cada tick.
@@ -351,7 +351,7 @@ function updateFocusDashboard(){
  const chart=$('focusHistogram');
  if(chart){
    chart.replaceChildren();
-   const bucketMs=3000, count=14;
+   const bucketMs=2000, count=20;
    const latest=trades.length?trades[trades.length-1].timestamp:0;
    const lastBucket=latest?Math.floor(latest/bucketMs)*bucketMs:0;
    const values=Array(count).fill(0), observed=Array(count).fill(false);
@@ -409,6 +409,12 @@ function updateFocusDashboard(){
  put('focusEntry',active?status:'AGUARDAR');
  put('focusRisk',value('stopPrice')+' / '+value('target1'));
  const card=$('focusEntry');if(card)card.style.color=active?(up?'#40d69c':'#ff7388'):'#e7effb';
+}
+let focusRenderPending=false;
+function scheduleFocusRefresh(){
+ if(focusRenderPending)return;
+ focusRenderPending=true;
+ setTimeout(()=>{focusRenderPending=false;updateFocusDashboard()},120);
 }
 setInterval(updateFocusDashboard,1000);updateFocusDashboard();
 })();
