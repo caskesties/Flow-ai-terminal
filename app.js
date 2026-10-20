@@ -471,7 +471,7 @@ function updateFocusDashboard(){
  const flowSell=first.side==='sell'&&second.side==='sell'&&first.share>=.57&&second.share>=.57;
  const pullbackCandidate=resumeSell&&flowSell;
  if(pullbackCandidate&&!active){
-   const confirmedByTreasury=treasuryReady&&/QUEDA|BAIXA|FAVORAVEL VENDA|FAVORÁVEL VENDA/i.test(treasury);
+   const confirmedByTreasury=false; // Signed Treasury direction is not available to this client-side pattern yet.
    put('focusEntry',confirmedByTreasury?'VENDA EXPERIMENTAL · REVISAR':'POSSÍVEL VENDA · AGUARDAR TREASURY');
    put('focusDirection','↓');
    put('focusDirectionText',confirmedByTreasury?'VENDA EXPERIMENTAL':'POSSÍVEL VENDA');
