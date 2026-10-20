@@ -341,10 +341,12 @@ function updateFocusDashboard(){
  if($('focusBuyBar'))$('focusBuyBar').style.width=$('buyBar')?.style.width||'50%';
  if($('focusSellBar'))$('focusSellBar').style.width=$('sellBar')?.style.width||'50%';
  put('focusDelta',value('delta'));
- const burstText=value('burstStatus');
- const burstRatio=burstText.match(/([0-9]+(?:[.,][0-9]+)?)\s*[×x]/);
- put('focusVolume',burstRatio?burstRatio[1]+'×':'—');
-
+ // The compact card intentionally never shows free-form diagnostic text.
+ const baselineMessage=value('burstStatus');
+ const compactMatch=baselineMessage.match(/(?:^|\s)([0-9]+(?:[.,][0-9]+)?)\s*[×x]/);
+ const volumeMultiplier=compactMatch?Number(compactMatch[1].replace(',','.')):NaN;
+ const compactVolume=Number.isFinite(volumeMultiplier)?volumeMultiplier.toLocaleString('pt-BR',{maximumFractionDigits:1,minimumFractionDigits:1})+'×':'—';
+ put('focusVolume',compactVolume);
  const clean=Number(value('delta').replace(/\./g,'').replace(',','.').replace(/[^0-9.+-]/g,''));
  if(Number.isFinite(clean)&&value('healthWin').includes('Recebendo')){
    if(!focusDeltaHistory.length||Date.now()-focusDeltaHistory[focusDeltaHistory.length-1].at>=3000){
