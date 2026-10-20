@@ -38,7 +38,7 @@ class ServerFlowSignals:
         reference=sum(x["size"] for x in prior if x["side"]==direction)
         if reference<=0 or total<=0:return None
         ratio=(directional/5)/(reference/(span/1000))
-        if directional/total<.65 or ratio<1.8:return None
+        if directional/total<.60 or ratio<1.8:return None
         move=item["price"]-recent[0]["price"]
         if not ((direction=="buy" and move>0) or (direction=="sell" and move<0)):return None
         treasury_status="not_applicable"
