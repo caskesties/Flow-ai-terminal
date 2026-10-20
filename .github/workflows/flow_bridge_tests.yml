@@ -19,3 +19,7 @@ jobs:
         run: python -m compileall -q backend
       - name: Run BBO flow classification tests
         run: cd backend && python -m unittest -v test_flow_classifier.py test_server_signals.py test_post_signal_monitor.py
+
+      - name: Run two-wave research tests
+        if: always()
+        run: cd backend && python -m unittest -v test_wave_research.py
