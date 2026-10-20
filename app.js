@@ -33,8 +33,8 @@ function ingestTreasury(m,source){
  treasuryTicks=treasuryTicks.filter(t=>t.timestamp>=ts-210000).slice(-5000);
  const target=tick.source.toLowerCase().includes('bbo')?treasuryQuoteTicks:treasuryTradeTicks;
  target.push(tick);
- treasuryQuoteTicks=treasuryQuoteTicks.filter(t=>t.timestamp>=ts-60000).slice(-10000);
- treasuryTradeTicks=treasuryTradeTicks.filter(t=>t.timestamp>=ts-60000).slice(-3000);
+ treasuryQuoteTicks=treasuryQuoteTicks.filter(t=>t.timestamp>=ts-210000).slice(-20000);
+ treasuryTradeTicks=treasuryTradeTicks.filter(t=>t.timestamp>=ts-210000).slice(-10000);
 }
 function ingest(m,source){const t=normalize(m,source==='csv');if(!t){rejected++;return;}const id=String(m.trade_id??m.id??'');if(id){if(seenIds.has(id))return;seenIds.add(id);if(seenIds.size>15000)seenIds.clear();}if(trades.length&&t.timestamp<trades[trades.length-1].timestamp-1000)return;trades.push(t);if(trades.length>65000)trades.splice(0,8000);price=t.price;lastIngest=Date.now();render(source);if(source==='live')scheduleFocusRefresh();if(source==='live'&&running&&ws?.readyState===WebSocket.OPEN)$('status').textContent='Recebendo '+symbol()+' · último negócio '+new Date(t.timestamp).toLocaleTimeString('pt-BR')}
 function calc(now,windowMs){const arr=trades.filter(t=>t.timestamp>=now-windowMs);let b=0,s=0;for(const t of arr)t.side==='buy'?b+=t.size:s+=t.size;return {arr,b,s,volume:b+s,delta:b-s,span:arr.length>1?now-arr[0].timestamp:0}}
