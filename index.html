@@ -45,6 +45,10 @@ a{color:#216ba7}
 .radar-bar{display:flex;gap:2px;width:100%;height:12px;background:#e1ebf1;border-radius:12px;overflow:hidden;margin-top:7px}
 #radarBuyBar{background:#0ba879;width:50%;transition:width .25s}#radarSellBar{background:#ea617b;width:50%;transition:width .25s}
 .radar-metrics strong{font-size:16px;color:#193148;display:block;white-space:normal;line-height:1.4}
+.radar-metrics strong.delta-badge{display:inline-flex;align-items:center;justify-content:center;width:78px;height:78px;min-width:78px;border-radius:50%;font-size:clamp(17px,4vw,25px);font-weight:800;line-height:1;white-space:nowrap;margin-top:6px;font-variant-numeric:tabular-nums}
+.radar-metrics strong.delta-positive{background:#d5f3e1;color:#116239}
+.radar-metrics strong.delta-negative{background:#fbe0e0;color:#a12632}
+.radar-metrics strong.delta-neutral{background:#e7f0f6;color:#193b5b}
 .radar-waves{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:9px}
 .radar-waves>div{min-width:0;background:#e7f0f6;padding:7px 4px;text-align:center;border-radius:9px}
 .radar-waves strong{display:block;font-size:14px;color:#193b5b;margin-top:3px;white-space:nowrap}
