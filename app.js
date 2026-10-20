@@ -416,6 +416,17 @@ function updateFocusDashboard(){
  put('radarWave1',fmtWave(first));put('radarWave2',fmtWave(second));
  const priceMove=windowTrades.length>=2?windowTrades[windowTrades.length-1].price-windowTrades[0].price:null;
  put('radarPriceMove',priceMove==null?'—':(priceMove>0?'+':'')+fmt(priceMove,2)+' pt');
+ const setRadarCardTone=(id,tone)=>{
+   const card=$(id)?.parentElement;
+   if(!card)return;
+   card.classList.remove('radar-positive','radar-negative');
+   if(tone==='buy')card.classList.add('radar-positive');
+   else if(tone==='sell')card.classList.add('radar-negative');
+ };
+ const waveTone=w=>w.count>=3&&w.total>=8?w.side:null;
+ setRadarCardTone('radarWave1',waveTone(first));
+ setRadarCardTone('radarWave2',waveTone(second));
+ setRadarCardTone('radarPriceMove',priceMove==null||!Number.isFinite(priceMove)?null:priceMove>0?'buy':priceMove<0?'sell':null);
  const recent30=windowTrades.filter(t=>t.timestamp>=last-30000);
  const recentBuy=recent30.reduce((n,t)=>n+(t.side==='buy'?(Number(t.size)||0):0),0);
  const recentTotal=recent30.reduce((n,t)=>n+(Number(t.size)||0),0);
