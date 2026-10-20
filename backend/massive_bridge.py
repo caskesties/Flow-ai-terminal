@@ -24,6 +24,7 @@ from structure_model import StructureFlowModel
 from elephant_model import ElephantFlowModel
 from post_signal_monitor import PostSignalMonitor
 from wave_research import WaveResearch
+from absorption_research import AbsorptionResearch
 import push_alerts
 
 MAX_CLIENT_QUEUE=1000
@@ -39,6 +40,7 @@ async def main():
     elephant_engine=ElephantFlowModel()
     post_monitor=PostSignalMonitor()
     wave_research=WaveResearch()
+    absorption_research=AbsorptionResearch()
     counts=Counter()
     last_report=time.monotonic()
     clients=set()
@@ -181,6 +183,9 @@ async def main():
                                 replay[item["symbol"]].append(dict(item))
                                 feed_health["last_classified_ms"]=int(time.time()*1000)
                                 post_events=post_monitor.on_trade(item)
+                                absorption_observation=absorption_research.on_trade(item)
+                                if absorption_observation:
+                                    print('Independent absorption research: %s %s share=%s range_ticks=%s' % (item['symbol'],absorption_observation['side'],absorption_observation['aggressor_share'],absorption_observation['local_range_ticks']),flush=True)
                                 wave_events=wave_research.on_trade(item,treasury_fresh=bool(latest_treasury and abs(item['timestamp']-latest_treasury['timestamp'])<=10000))
                                 for research_event in wave_events:
                                     if research_event['type']=='wave_research':
