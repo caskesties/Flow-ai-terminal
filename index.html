@@ -140,7 +140,20 @@ a{color:#216ba7}
  .advanced-details{margin-top:6px!important}
  .advanced-details summary{padding:9px!important}
 }
-</style><script>if('serviceWorker' in navigator){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!sessionStorage.getItem('flow-reload-radar5m-v1')){sessionStorage.setItem('flow-reload-radar5m-v1','1');location.reload()}})}</script></head><body><main><header class="row compact-header"><div><div class="brand">FLOW <em>AI</em> TERMINAL <small>GELO · v4</small></div><div class="muted">Leitura quantitativa de fluxo e liquidez • WIN / GC / MGC / NQ / MNQ</div></div><span class="pill" id="sourceTag">DEMO • ARTIFICIAL</span></header>
+</style><script>
+if('serviceWorker' in navigator){
+ let refreshed=false;
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{
+   if(refreshed)return;
+   refreshed=true;
+   location.reload();
+ });
+ window.addEventListener('load',()=>{
+   navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'})
+     .then(reg=>reg.update()).catch(()=>{});
+ });
+}
+</script></head><body><main><header class="row compact-header"><div><div class="brand">FLOW <em>AI</em> TERMINAL <small>GELO · v4</small></div><div class="muted">Leitura quantitativa de fluxo e liquidez • WIN / GC / MGC / NQ / MNQ</div></div><span class="pill" id="sourceTag">DEMO • ARTIFICIAL</span></header>
 
 
 <div id="focusDash">
