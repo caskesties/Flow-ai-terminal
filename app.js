@@ -182,15 +182,18 @@ const treasuryLast=treasuryTicks[treasuryTicks.length-1];
 const treasuryFresh=!!treasuryLast&&Math.abs(now-treasuryLast.timestamp)<=10000&&(source!=='live'||Date.now()-treasuryLast.timestamp<=10000);
 // ZN movement is quantized: many fresh quotes have the same midpoint.
 // Require a real, recent change, not simply a fresh repeated quote.
+const treasurySeries=treasuryLast?.symbol==='ZN'?(treasuryQuoteTicks.length>=2&&now-treasuryQuoteTicks[treasuryQuoteTicks.length-1].timestamp<=10000?treasuryQuoteTicks:treasuryTradeTicks):treasuryTicks;
+const treasurySeriesLast=treasurySeries[treasurySeries.length-1];
+const treasurySeriesFresh=!!treasurySeriesLast&&now-treasurySeriesLast.timestamp<=10000;
 const treasuryWindows=[2000,5000,10000,20000,30000].map(ms=>{
-  const candidates=treasuryLast?treasuryTicks.filter(t=>t.symbol===treasuryLast.symbol&&t.timestamp<treasuryLast.timestamp&&treasuryLast.timestamp-t.timestamp>=ms*.75&&treasuryLast.timestamp-t.timestamp<=ms*1.25):[];
-  const previous=candidates.reduce((best,t)=>!best||Math.abs(treasuryLast.timestamp-t.timestamp-ms)<Math.abs(treasuryLast.timestamp-best.timestamp-ms)?t:best,null);
-  const change=previous?treasuryLast.value-previous.value:NaN;
+  const candidates=treasurySeriesLast?treasurySeries.filter(t=>t.timestamp<treasurySeriesLast.timestamp&&treasurySeriesLast.timestamp-t.timestamp>=ms*.75&&treasurySeriesLast.timestamp-t.timestamp<=ms*1.25):[];
+  const previous=candidates.reduce((best,t)=>!best||Math.abs(treasurySeriesLast.timestamp-t.timestamp-ms)<Math.abs(treasuryLast.timestamp-best.timestamp-ms)?t:best,null);
+  const change=previous?treasurySeriesLast.value-previous.value:NaN;
   const threshold=treasuryLast?.symbol==='ZN'?.015625:.002;
-  return {ms,change,valid:!!previous,previous,age:previous?treasuryLast.timestamp-previous.timestamp:NaN,
+  return {ms,change,valid:!!previous,previous,age:previous?treasurySeriesLast.timestamp-previous.timestamp:NaN,
     direction:Number.isFinite(change)&&Math.abs(change)>=threshold?Math.sign(change):0};
 });
-const treasuryChanges=treasuryTicks.filter((t,i,a)=>i>0&&t.symbol===a[i-1].symbol&&Math.abs(t.value-a[i-1].value)>=.0000001);
+const treasuryChanges=treasurySeries.filter((t,i,a)=>i>0&&t.symbol===a[i-1].symbol&&Math.abs(t.value-a[i-1].value)>=.0000001);
 const lastEffectiveChange=treasuryChanges[treasuryChanges.length-1];
 const changeAge=lastEffectiveChange?now-lastEffectiveChange.timestamp:Infinity;
 const directionalWindows=treasuryWindows.filter(w=>w.ms>=5000&&w.direction!==0);
@@ -201,9 +204,9 @@ const shortVotes=directionalWindows.filter(w=>w.ms<=10000);
 const longerVotes=directionalWindows.filter(w=>w.ms>=20000);
 const shortConfirmed=shortVotes.length===2&&shortVotes[0].direction===shortVotes[1].direction;
 const longerConfirmed=longerVotes.length===2&&longerVotes[0].direction===longerVotes[1].direction;
-const treasuryPriceDirection=treasuryFresh&&changeAge<=15000&&!contradictory&&(shortConfirmed||longerConfirmed)?(shortConfirmed?shortVotes[0].direction:longerVotes[0].direction):0;
+const treasuryPriceDirection=treasuryFresh&&treasurySeriesFresh&&changeAge<=15000&&!contradictory&&(shortConfirmed||longerConfirmed)?(shortConfirmed?shortVotes[0].direction:longerVotes[0].direction):0;
 const yieldDirection=treasuryLast?.symbol==='ZN'?-treasuryPriceDirection:treasuryPriceDirection;
-const treasuryMovementState=!treasuryFresh?'DADOS ATRASADOS':!lastEffectiveChange?'SEM ALTERACAO EFETIVA':changeAge>15000?'ULTIMA MUDANCA ANTIGA':contradictory?'JANELAS CONTRADITORIAS':yieldDirection===0?'MOVIMENTO INCONCLUSIVO':'DIRECAO CONFIRMADA';
+const treasuryMovementState=!treasuryFresh||!treasurySeriesFresh?'DADOS ATRASADOS':!lastEffectiveChange?'SEM ALTERACAO EFETIVA':changeAge>15000?'ULTIMA MUDANCA ANTIGA':contradictory?'JANELAS CONTRADITORIAS':yieldDirection===0?'MOVIMENTO INCONCLUSIVO':'DIRECAO CONFIRMADA';
 const recentNasdaq=trades.filter(t=>t.timestamp>now-5000);
 const priorNasdaq=trades.filter(t=>t.timestamp<=now-5000&&t.timestamp>now-185000);
 const nasdaqBuy=recentNasdaq.reduce((v,t)=>v+(t.side==='buy'?t.size:0),0);
