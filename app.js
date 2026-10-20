@@ -473,9 +473,17 @@ function updateFocusDashboard(){
    badge5.classList.remove('delta-badge','delta-positive','delta-negative','delta-neutral','metric-positive','metric-negative','metric-neutral');
    badge5.classList.add(!trades5m.length||delta5m===0?'metric-neutral':delta5m>0?'metric-positive':'metric-negative');
  }
- // Short burst/pressure values remain on their explicitly labeled 3s/30s windows.
- put('radarWave15m',fmtWave(first));put('radarWave25m',fmtWave(second));
- setRadarCardTone('radarWave15m',waveTone(first));setRadarCardTone('radarWave25m',waveTone(second));
+ // Independent 5-minute context: two nonoverlapping 150-second windows.
+ const half5m=(from,to)=>{
+  const sample=trades5m.filter(t=>t.timestamp>=last-to&&t.timestamp<last-from);
+  const total=sample.reduce((n,t)=>n+(Number(t.size)||0),0),delta=signed(sample);
+  return {count:sample.length,total,side:delta>0?'buy':delta<0?'sell':null,share:total?(total+Math.abs(delta))/(2*total):0};
+ };
+ const first5m=half5m(150000,300000),second5m=half5m(0,150000);
+ const fmt5mWave=w=>w.count>=3&&w.total>=8?(w.side==='buy'?'↑ ':w.side==='sell'?'↓ ':'↔ ')+Math.round(w.share*100)+'%':'—';
+ put('radarWave15m',fmt5mWave(first5m));put('radarWave25m',fmt5mWave(second5m));
+ setRadarCardTone('radarWave15m',first5m.count>=3&&first5m.total>=8?first5m.side:null);
+ setRadarCardTone('radarWave25m',second5m.count>=3&&second5m.total>=8?second5m.side:null);
  put('radarAcceleration5m',value('radarAcceleration'));
  const pressure5=$('radarAcceleration5m');
  if(pressure5){
