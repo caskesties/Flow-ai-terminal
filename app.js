@@ -406,9 +406,9 @@ function updateFocusDashboard(){
  put('focusDelta',windowTrades.length?((delta120>0?'+':'')+fmt(delta120)):'—');
  if($('focusDelta')){
    const badge=$('focusDelta');
-   badge.classList.add('delta-badge');
-   badge.classList.remove('delta-positive','delta-negative','delta-neutral');
-   badge.classList.add(!windowTrades.length||!Number.isFinite(delta120)||delta120===0?'delta-neutral':delta120>0?'delta-positive':'delta-negative');
+   badge.classList.add('metric-outline');
+   badge.classList.remove('delta-badge','delta-positive','delta-negative','delta-neutral','metric-positive','metric-negative','metric-neutral');
+   badge.classList.add(!windowTrades.length||!Number.isFinite(delta120)||delta120===0?'metric-neutral':delta120>0?'metric-positive':'metric-negative');
  }
  const waveStats=(from,to)=>{
    const a=last?trades.filter(t=>t.timestamp>=last-to&&t.timestamp<last-from&&(t.side==='buy'||t.side==='sell')):[];
@@ -442,6 +442,12 @@ function updateFocusDashboard(){
  const lateSec=late.length>=2?Math.max(1,(late[late.length-1].timestamp-late[0].timestamp)/1000):0;
  const accel=early.length>=5&&late.length>=5&&earlySec>=5&&lateSec>=5?((signed(late)/lateSec)-(signed(early)/earlySec)):null;
  put('radarAcceleration',recentShare===null||recent30.length<5?'SEM BASE':(recentShare>=57?'↑ ':recentShare<=43?'↓ ':'↔ ')+recentShare+'%');
+ if($('radarAcceleration')){
+   const pressure=$('radarAcceleration');
+   pressure.classList.add('metric-outline');
+   pressure.classList.remove('metric-positive','metric-negative','metric-neutral');
+   pressure.classList.add(recentShare===null||recent30.length<5?'metric-neutral':recentShare>=57?'metric-positive':recentShare<=43?'metric-negative':'metric-neutral');
+ }
  const qualified=first.count>=3&&second.count>=3&&first.total>=8&&second.total>=8&&first.side&&first.side===second.side&&first.share>=.57&&second.share>=.57;
  const recentMove=recent30.length>=2?recent30[recent30.length-1].price-recent30[0].price:null;
  const stall=recent30.length>=12&&recentTotal>=40&&recentMove!==null&&Math.abs(recentMove)<=config[symbol()].tick*3&&Math.abs(signed(recent30))/Math.max(1,recentTotal)>=.57;
