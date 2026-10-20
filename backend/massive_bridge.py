@@ -184,7 +184,7 @@ async def main():
                                 for watch_event in post_events:
                                     print('Post-signal diagnostic: %s %s' % (watch_event['symbol'],watch_event['stage']),flush=True)
                                     if event_in_session(watch_event['timestamp']):
-                                        asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_post_signal(watch_event)))
+                                        asyncio.create_task(push_alerts.deliver({'title':'FLOW · ALERTA DE FLUXO · '+watch_event['symbol'],'body':'Possível reversão ou absorção detectada; confira o painel antes de decidir.','tag':'post-'+watch_event['symbol']+'-'+str(watch_event['signal_timestamp']),'timestamp':watch_event['timestamp'],'url':'./index.html'}))
                                         for _,contract,q in tuple(clients):
                                             if contract==watch_event['symbol'] and not q.full():q.put_nowait(watch_event)
                                 for outcome in signal_engine.drain_updates():
