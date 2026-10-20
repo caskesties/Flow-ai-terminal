@@ -41,3 +41,10 @@ O painel destaca quando o preço estiver entre retrações de 50% e 61,8% (com t
 
 ## Fibonacci estrutural 30/60 minutos (2026-10-18)
 Painel principal: FIBO e região próxima ou prioritária de 50–61,8%. A referência de cinco minutos foi substituída por pivôs locais confirmados em barras agregadas de um minuto, dentro de janelas de 30/60 minutos, com cobertura mínima de 80% da duração e 60% dos minutos, amplitude mínima de 20 ticks e filtro de pivôs com dois vizinhos em cada direção. Prioridade de 60 minutos quando existe histórico válido, senão 30 minutos. Retrações continuam apenas contextuais e não habilitam ordens. Pregão anterior, máximas/mínimas de outras sessões e pivôs de maior prazo requerem feed histórico persistente (não implementado); o sistema mostra indisponível em vez de fabricar tais regiões. Não equivale a pivôs confirmados de candles de 30/60 minutos, apenas swings intrajanela; validação pendente.
+
+## Regra de delta direcional (especificação para validação)
+- Delta = volume classificado como compra agressora menos volume classificado como venda agressora. Com participação compradora >=57% em uma mesma janela e universo de negócios, delta necessariamente positivo; para venda >=57%, negativo. Não contar delta e participação como duas confirmações independentes.
+- Monitorar variação e ritmo do delta em janelas móveis de 2, 5 e 10 segundos para diagnóstico de aceleração, desaceleração e inversão; não exigir aceleração positiva continuamente.
+- Confrontar delta e avanço real de preço: agressão persistente com deslocamento pequeno sugere **possível** absorção, não confirmação de player ou reversão; delta invertido com deslocamento adverso sugere possível reversão.
+- Barra Elefante 2m é confirmação adicional opcional, nunca bloqueio para modelos de entrada independentes.
+- Critérios permanecem experimentais; exigem backtest e teste ao vivo antes de confiança operacional. Não executar saídas/parciais automaticamente.
