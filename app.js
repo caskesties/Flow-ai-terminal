@@ -2,6 +2,7 @@
 const $=id=>document.getElementById(id),fmt=(n,d=0)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d}),KEY='flow-ai-v3-alerts';
 let reconnectAttempt=0,reconnectTimer=null;
  let radarSignalState='NONE',radarSignalSide='',radarSignalAt=0;
+let absorptionWatch=null,absorptionAlertAt=0,lastConfirmedRadar=null;
 let pushPublicKey='';
 let resumeConnection=false;
 let gcReference={trades:[],last:0};
@@ -12,7 +13,7 @@ const symbol=()=>$('instrument').value;function rng(){seed=(Math.imul(seed,16645
 function log(stage,side,score,why){const a={id:Date.now()+'-'+Math.round(Math.random()*1e6),status:'PENDENTE',after5:null,after30:null,time:new Date().toISOString(),symbol:symbol(),source:$('source').value,stage,side,score,price,why};history.unshift(a);history=history.slice(0,200);try{localStorage.setItem(KEY,JSON.stringify(history))}catch{}renderAlerts()}
 function renderAlerts(){const root=$('events');root.replaceChildren();if(!history.length){root.textContent='Nenhum alerta.';return}for(const a of history.slice(0,22)){const el=document.createElement('div');el.className='event '+(/FALSO|INVALIDADO|REVERSÃO/.test(a.stage)?'bad':a.stage==='CONFIRMADO'?'good':'');const title=document.createElement('b');title.textContent=a.stage+' · '+a.side+' · '+a.symbol+' · '+a.source.toUpperCase();const detail=document.createElement('p');detail.className='muted';detail.textContent=new Date(a.time).toLocaleTimeString('pt-BR')+' · '+fmt(a.price,2)+' · '+a.score+'/100 · '+a.why+' · 5s: '+(a.after5===null||a.after5===undefined?'PENDENTE':fmt(a.after5,2))+' · 30s: '+(a.after30===null||a.after30===undefined?'PENDENTE':fmt(a.after30,2))+' · Avaliação servidor: '+(a.outcomes?Object.entries(a.outcomes).map(([k,v])=>k+'s '+fmt(v.move,2)+' (fav '+fmt(v.favorable,2)+' / contr '+fmt(v.adverse,2)+(v.flag==='OBSERVED'?'':'; LACUNA')+')').join(' | '):'pendente');el.append(title,detail);root.append(el)}}
 function stop(){if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null}running=false;if(timer)clearInterval(timer);timer=null;if(ws){ws.onclose=null;ws.close();ws=null}$('start').disabled=false;$('stop').disabled=true;$('status').textContent='Pausado'}
-function reset(){radarSignalState='NONE';radarSignalSide='';radarSignalAt=0;gcReference={trades:[],last:0};if($('gcRefInfo'))$('gcRefInfo').textContent='Aguardando negócios '+(symbol()==='MNQ'?'NQ':'GC');for(const id of ['shortDelta','shortAcceleration','shortMove','shortConfluence'])if($(id))$(id).textContent='Aguardando dados';stop();demoStart=Date.now();trades=[];play=[];cursor=0;fibSnapshot=null;breakout=null;buyTrigger=null;sellTrigger=null;zoneRefreshAt=0;diTicks=[];diRate=13.25;treasuryTicks=[];treasuryQuoteTicks=[];treasuryTradeTicks=[];lastEarly=0;seenIds.clear();rejected=0;lastStage='';lastAlert=0;price=config[symbol()].start;$('instrumentLabel').textContent=symbol()+' · '+(symbol()==='WIN'?'Mini índice':symbol()==='NQ'||symbol()==='MNQ'?'Nasdaq futuro':'Ouro futuro');$('level').value=symbol()==='WIN'?'132480':symbol()==='NQ'||symbol()==='MNQ'?'':'';$('level').step=config[symbol()].tick;$('maxStop').value=symbol()==='WIN'?'200':'';$('maxStop').step=config[symbol()].tick;$('maxStop').max=symbol()==='WIN'?'200':'';$('breakLevel').textContent=$('level').value?fmt(Number($('level').value),symbol()==='WIN'?0:2):'Sem nível validado';$('price').textContent=fmt(price,symbol()==='WIN'?0:2);for(const id of ['delta','volume','rate','score','entry','stopPrice','risk','target1','target2'])$(id).textContent='—';$('signal').textContent='AGUARDAR';$('signal').className='signal neutral';$('heroDelta').textContent='—';$('heroDelta').className='neutral';$('heroDeltaTrend').textContent='Aguardando fluxo';$('stage').textContent='OBSERVAÇÃO';$('reason').textContent='Aguardando negócios.';$('confidence').textContent='Força heurística: —';$('timeframes').textContent='Aguardando dados';$('buyBar').style.width='50%';$('sellBar').style.width='50%';$('buyPct').textContent='50%';$('sellPct').textContent='50%';$('feedAge').textContent='Sem dados';$('sourceTag').textContent='DEMO · ARTIFICIAL';$('healthWin').textContent='Desconectado';$('healthDI').textContent='Desconectado';$('healthBook').textContent='Não integrado';$('healthQuality').textContent='Aguardando';$('demoPhase').textContent='Cenário fictício disponível — clique em Iniciar';$('absZone').textContent='Aguardando negócios';$('absStatus').textContent='Sem evidência suficiente.';$('absDirection').textContent='Direção: aguardando confirmação.';$('diStatus').textContent='DI1 aguardando';$('burstStatus').textContent='Aguardando dados';$('confluence').textContent='Sem confirmação';$('buyTrigger').textContent='Aguardando dados';$('sellTrigger').textContent='Aguardando dados';$('buyZoneCard').className='zone';$('sellZoneCard').className='zone';$('triggerInfo').textContent='Coletando histórico para delimitar suporte e resistência; sem gatilhos ativos.';$('heroFibo').textContent='—';$('heroFiboDetail').textContent='30m / 60m · aguardando';$('fibStatus').textContent='Aguardando histórico de preços';$('fibLevels').textContent='—';$('fibDirection').textContent='Sem pivôs identificados';}
+function reset(){radarSignalState='NONE';radarSignalSide='';radarSignalAt=0;absorptionWatch=null;absorptionAlertAt=0;lastConfirmedRadar=null;gcReference={trades:[],last:0};if($('gcRefInfo'))$('gcRefInfo').textContent='Aguardando negócios '+(symbol()==='MNQ'?'NQ':'GC');for(const id of ['shortDelta','shortAcceleration','shortMove','shortConfluence'])if($(id))$(id).textContent='Aguardando dados';stop();demoStart=Date.now();trades=[];play=[];cursor=0;fibSnapshot=null;breakout=null;buyTrigger=null;sellTrigger=null;zoneRefreshAt=0;diTicks=[];diRate=13.25;treasuryTicks=[];treasuryQuoteTicks=[];treasuryTradeTicks=[];lastEarly=0;seenIds.clear();rejected=0;lastStage='';lastAlert=0;price=config[symbol()].start;$('instrumentLabel').textContent=symbol()+' · '+(symbol()==='WIN'?'Mini índice':symbol()==='NQ'||symbol()==='MNQ'?'Nasdaq futuro':'Ouro futuro');$('level').value=symbol()==='WIN'?'132480':symbol()==='NQ'||symbol()==='MNQ'?'':'';$('level').step=config[symbol()].tick;$('maxStop').value=symbol()==='WIN'?'200':'';$('maxStop').step=config[symbol()].tick;$('maxStop').max=symbol()==='WIN'?'200':'';$('breakLevel').textContent=$('level').value?fmt(Number($('level').value),symbol()==='WIN'?0:2):'Sem nível validado';$('price').textContent=fmt(price,symbol()==='WIN'?0:2);for(const id of ['delta','volume','rate','score','entry','stopPrice','risk','target1','target2'])$(id).textContent='—';$('signal').textContent='AGUARDAR';$('signal').className='signal neutral';$('heroDelta').textContent='—';$('heroDelta').className='neutral';$('heroDeltaTrend').textContent='Aguardando fluxo';$('stage').textContent='OBSERVAÇÃO';$('reason').textContent='Aguardando negócios.';$('confidence').textContent='Força heurística: —';$('timeframes').textContent='Aguardando dados';$('buyBar').style.width='50%';$('sellBar').style.width='50%';$('buyPct').textContent='50%';$('sellPct').textContent='50%';$('feedAge').textContent='Sem dados';$('sourceTag').textContent='DEMO · ARTIFICIAL';$('healthWin').textContent='Desconectado';$('healthDI').textContent='Desconectado';$('healthBook').textContent='Não integrado';$('healthQuality').textContent='Aguardando';$('demoPhase').textContent='Cenário fictício disponível — clique em Iniciar';$('absZone').textContent='Aguardando negócios';$('absStatus').textContent='Sem evidência suficiente.';$('absDirection').textContent='Direção: aguardando confirmação.';$('diStatus').textContent='DI1 aguardando';$('burstStatus').textContent='Aguardando dados';$('confluence').textContent='Sem confirmação';$('buyTrigger').textContent='Aguardando dados';$('sellTrigger').textContent='Aguardando dados';$('buyZoneCard').className='zone';$('sellZoneCard').className='zone';$('triggerInfo').textContent='Coletando histórico para delimitar suporte e resistência; sem gatilhos ativos.';$('heroFibo').textContent='—';$('heroFiboDetail').textContent='30m / 60m · aguardando';$('fibStatus').textContent='Aguardando histórico de preços';$('fibLevels').textContent='—';$('fibDirection').textContent='Sem pivôs identificados';}
 function normalize(m,archive=false){if(!m||typeof m!=='object'||String(m.symbol||'').toUpperCase()!==symbol())return null;const price=Number(m.price),size=Number(m.size),side=String(m.side||'').toLowerCase();let timestamp=typeof m.timestamp==='number'?m.timestamp:/^\d+$/.test(String(m.timestamp))?Number(m.timestamp):Date.parse(m.timestamp);if(timestamp<1e11)timestamp*=1000;if(!Number.isFinite(timestamp)||!Number.isFinite(price)||price<=0||!Number.isSafeInteger(size)||size<=0||size>1000000||!['buy','sell'].includes(side))return null;if(!archive&&(timestamp>Date.now()+5000||timestamp<Date.now()-60000))return null;return {timestamp,price,size,side}}
 function ingestDI(m,source){if(symbol()!=='WIN'||!m||String(m.symbol||'').toUpperCase().indexOf('DI1')!==0)return;const rate=Number(m.rate),ts=typeof m.timestamp==='number'?m.timestamp:Date.parse(m.timestamp);const timestamp=ts<1e11?ts*1000:ts;if(!Number.isFinite(rate)||rate<0||rate>100||!Number.isFinite(timestamp))return;if(source==='live'&&(Date.now()-timestamp>3000||timestamp>Date.now()+5000))return;if(diTicks.length&&timestamp<diTicks[diTicks.length-1].timestamp)return;diTicks.push({timestamp,rate});diTicks=diTicks.filter(x=>x.timestamp>=timestamp-30000).slice(-1000);diRate=rate;}
 // ZN = Treasury Note futures PRICE (inverse of yield); US10Y = yield in percent.
@@ -581,6 +582,49 @@ function updateFocusDashboard(){
        radarPhase==='CONFIRMADO'?'Pressão geral e radares 2m/5m concordantes; sinal heurístico sem backtest':'Pressão geral e radar 2m ≥53%, duas ondas alinhadas e delta ≥100 em módulo');
      radarSignalAt=Date.now();
    }
+ }
+ // Independent absorption observation: delta accelerates but price stalls.
+ const aw=trades.filter(t=>t.timestamp>=last-15000&&t.timestamp<=last);
+ const earlyAw=aw.filter(t=>t.timestamp<last-7500),lateAw=aw.filter(t=>t.timestamp>=last-7500);
+ const av=aw.reduce((n,t)=>n+(Number(t.size)||0),0);
+ const ad=signed(aw),ed=signed(earlyAw),ld=signed(lateAw);
+ const aside=ad>0?'buy':ad<0?'sell':null;
+ const moveAw=aw.length>=2?aw[aw.length-1].price-aw[0].price:0;
+ const aTick=config[symbol()].tick;
+ const dense=earlyAw.length>=5&&lateAw.length>=5&&aw[aw.length-1].timestamp-aw[0].timestamp>=10000;
+ const pressureAw=av>=100&&Math.abs(ad)>=100&&Math.abs(ad)/av>=.06;
+ const growing=aside&&Math.sign(ld)===Math.sign(ad)&&Math.abs(ld)>=Math.abs(ed)*1.15&&Math.abs(ld)>=35;
+ const stalled=dense&&pressureAw&&growing&&Math.abs(moveAw)<=3*aTick;
+ if(radarPhase==='CONFIRMADO'&&radarSide)lastConfirmedRadar={side:radarSide,at:last};
+ if(stalled&&radarReady){
+  const reverse=aside==='buy'?'VENDA':'COMPRA';
+  const afterEntry=lastConfirmedRadar&&last-lastConfirmedRadar.at<120000&&lastConfirmedRadar.side===aside;
+  const kind=afterEntry?'EXAUSTÃO POSSÍVEL':'ABSORÇÃO POSSÍVEL';
+  put('focusAbsorption',kind+' · OBSERVAR '+reverse);
+  if(!absorptionWatch||absorptionWatch.side!==aside||last-absorptionWatch.at>30000)
+   absorptionWatch={side:aside,at:last,high:Math.max(...aw.map(t=>t.price)),low:Math.min(...aw.map(t=>t.price))};
+  if(radarAlertsAllowed&&Date.now()-absorptionAlertAt>30000){
+   log(kind,reverse,0,'Delta crescente sem deslocamento correspondente; reversão não confirmada');
+   absorptionAlertAt=Date.now();
+  }
+ }else if(absorptionWatch&&last-absorptionWatch.at<=30000&&radarReady){
+  const watch=absorptionWatch,reverse=watch.side==='buy'?'sell':'buy';
+  const recent=trades.filter(t=>t.timestamp>=last-5000);
+  const deltaRecent=signed(recent);
+  const reversed=recent.length>=5&&(reverse==='buy'?deltaRecent>=20:deltaRecent<=-20);
+  const broke=reverse==='buy'?price>watch.high+aTick:price<watch.low-aTick;
+  if(reversed&&broke){
+   const sideLabel=reverse==='buy'?'COMPRA':'VENDA';
+   put('focusAbsorption','REVERSÃO '+sideLabel+' · FLUXO E PREÇO');
+   if(radarAlertsAllowed&&Date.now()-absorptionAlertAt>=5000){
+    log('REVERSÃO POR ABSORÇÃO',sideLabel,0,'Reversão observada com delta e deslocamento; sinal experimental');
+    absorptionAlertAt=Date.now();
+   }
+   absorptionWatch=null;
+  }else put('focusAbsorption','ABSORÇÃO DETECTADA · AGUARDAR REVERSÃO');
+ }else{
+  put('focusAbsorption','SEM ABSORÇÃO DETECTADA');
+  if(absorptionWatch&&last-absorptionWatch.at>30000)absorptionWatch=null;
  }
  radarSignalState=radarPhase;radarSignalSide=radarSide||'';
  put('focusRisk',value('stopPrice')+' / '+value('target1'));
