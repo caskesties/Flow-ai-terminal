@@ -25,6 +25,7 @@ from elephant_model import ElephantFlowModel
 from post_signal_monitor import PostSignalMonitor
 from wave_research import WaveResearch
 from absorption_research import AbsorptionResearch
+from radar_push_engine import RadarPushEngine
 import push_alerts
 
 MAX_CLIENT_QUEUE=1000
@@ -41,6 +42,7 @@ async def main():
     post_monitor=PostSignalMonitor()
     wave_research=WaveResearch()
     absorption_research=AbsorptionResearch()
+    radar_push_engine=RadarPushEngine()
     counts=Counter()
     last_report=time.monotonic()
     clients=set()
@@ -182,6 +184,10 @@ async def main():
                             if item:
                                 replay[item["symbol"]].append(dict(item))
                                 feed_health["last_classified_ms"]=int(time.time()*1000)
+                                radar_events=radar_push_engine.on_trade(item)
+                                for radar_event in radar_events:
+                                    if event_in_session(radar_event['timestamp']):
+                                        asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_radar(radar_event)))
                                 post_events=post_monitor.on_trade(item)
                                 absorption_observation=absorption_research.on_trade(item)
                                 if absorption_observation:
