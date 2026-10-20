@@ -351,11 +351,11 @@ function updateFocusDashboard(){
  if($('focusSellBar'))$('focusSellBar').style.width=$('sellBar')?.style.width||'50%';
  put('focusDelta',value('delta'));
  // The compact card intentionally never shows free-form diagnostic text.
- const baselineMessage=value('burstStatus');
- const compactMatch=baselineMessage.match(/(?:^|\s)([0-9]+(?:[.,][0-9]+)?)\s*[×x]/);
- const volumeMultiplier=compactMatch?Number(compactMatch[1].replace(',','.')):NaN;
- const compactVolume=Number.isFinite(volumeMultiplier)?volumeMultiplier.toLocaleString('pt-BR',{maximumFractionDigits:1,minimumFractionDigits:1})+'×':'—';
- put('focusVolume',compactVolume);
+ // Numeric 1-minute volume from classified trades; never display diagnostic prose.
+ const latestTrade=trades.length?trades[trades.length-1].timestamp:0;
+ const volumeTrades=latestTrade?trades.filter(t=>t.timestamp>=latestTrade-60000):[];
+ const minuteVolume=volumeTrades.reduce((total,t)=>total+(Number(t.size)||0),0);
+ put('focusVolume',volumeTrades.length?fmt(minuteVolume):'—');
  // Signed aggressive delta per fixed 3s time bucket; oldest to newest.
  // A negative bar extends below zero, a positive bar above zero.
  const chart=$('focusHistogram');
