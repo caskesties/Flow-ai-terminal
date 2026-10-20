@@ -189,7 +189,7 @@ async def main():
                                 wave_events=wave_research.on_trade(item,treasury_fresh=bool(latest_treasury and abs(item['timestamp']-latest_treasury['timestamp'])<=10000))
                                 for research_event in wave_events:
                                     if research_event['type']=='wave_research':
-                                        print('Wave research: %s %s status=%s blockers=%s' % (research_event['symbol'],research_event['side'],research_event['status'],','.join(research_event['blockers'])),flush=True)
+                                        print('Wave research: %s %s short=%s prev2m=%s valid2m=%s share=%s status=%s blockers=%s' % (research_event['symbol'],research_event['side'],research_event['short_breakout'],research_event['previous_2m_breakout'],research_event['previous_2m_valid'],','.join(str(w['share']) for w in research_event['waves']),research_event['status'],','.join(research_event['blockers'])),flush=True)
                                     else:
                                         print('Wave research outcome: %s %ss signed=%s gap=%s' % (research_event['symbol'],research_event['horizon_seconds'],research_event['signed_move'],research_event['data_gap']),flush=True)
                                 server_signal=signal_engine.on_trade(item)
