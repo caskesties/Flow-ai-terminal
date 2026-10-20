@@ -356,48 +356,44 @@ function updateFocusDashboard(){
  const volumeTrades=latestTrade?trades.filter(t=>t.timestamp>=latestTrade-60000):[];
  const minuteVolume=volumeTrades.reduce((total,t)=>total+(Number(t.size)||0),0);
  put('focusVolume',volumeTrades.length?fmt(minuteVolume):'—');
- // Signed aggressive delta per fixed 3s time bucket; oldest to newest.
- // A negative bar extends below zero, a positive bar above zero.
- const chart=$('focusHistogram');
- if(chart){
-   chart.replaceChildren();
-   const bucketMs=2000, count=20;
-   const latest=trades.length?trades[trades.length-1].timestamp:0;
-   const lastBucket=latest?Math.floor(latest/bucketMs)*bucketMs:0;
-   const values=Array(count).fill(0), observed=Array(count).fill(false);
-   if(lastBucket){
-     const firstBucket=lastBucket-(count-1)*bucketMs;
-     for(const trade of trades){
-       const index=Math.floor((trade.timestamp-firstBucket)/bucketMs);
-       if(index<0||index>=count)continue;
-       if(trade.side!=='buy'&&trade.side!=='sell')continue;
-       const quantity=Number(trade.size);
-       if(!Number.isFinite(quantity)||quantity<=0)continue;
-       values[index]+=(trade.side==='buy'?quantity:-quantity);
-       observed[index]=true;
-     }
-   }
-   const magnitude=Math.max(1,...values.map(Math.abs));
-   // SVG avoids inherited flex/CSS rules that previously centered bars.
-   const ns='http://www.w3.org/2000/svg', width=280, height=64, baseline=32;
-   const svg=document.createElementNS(ns,'svg');
-   svg.setAttribute('viewBox','0 0 '+width+' '+height);
-   svg.setAttribute('preserveAspectRatio','none');
-   svg.setAttribute('role','img');
-   svg.setAttribute('aria-label','Delta por períodos de 3 segundos, positivo acima e negativo abaixo de zero');
-   const zero=document.createElementNS(ns,'line');
-   for(const [key,val] of Object.entries({x1:0,y1:baseline,x2:width,y2:baseline,stroke:'#52657b','stroke-width':1}))zero.setAttribute(key,val);
-   svg.append(zero);
-   const step=width/count;
-   for(let i=0;i<count;i++){
-     if(!observed[i]||values[i]===0)continue;
-     const pixels=Math.max(2,Math.abs(values[i])/magnitude*27);
-     const rect=document.createElementNS(ns,'rect');
-     for(const [key,val] of Object.entries({x:i*step+2,y:values[i]>0?baseline-pixels:baseline,width:step-4,height:pixels,rx:2,fill:values[i]>0?'#32d99c':'#ef6175'}))rect.setAttribute(key,val);
-     svg.append(rect);
-   }
-   chart.append(svg);
- }
+ // Radar uses classified trade volume only; it does not infer actual institution identities.
+ const last=trades.length?trades[trades.length-1].timestamp:0;
+ const windowTrades=last?trades.filter(t=>t.timestamp>=last-30000&&t.timestamp<=last&&(t.side==='buy'||t.side==='sell')):[];
+ const recentVolume=windowTrades.reduce((a,t)=>a+(Number(t.size)||0),0);
+ const buyVolume=windowTrades.reduce((a,t)=>a+(t.side==='buy'?(Number(t.size)||0):0),0);
+ const sellVolume=recentVolume-buyVolume;
+ const pct=recentVolume?Math.round(100*buyVolume/recentVolume):null;
+ const putNum=(id,x)=>put(id,x==null?'—':x+'%');
+ putNum('radarBuy',pct);putNum('radarSell',pct==null?null:100-pct);
+ if($('radarBuyBar'))$('radarBuyBar').style.width=(pct??50)+'%';
+ if($('radarSellBar'))$('radarSellBar').style.width=(pct==null?50:100-pct)+'%';
+ const signed=(arr)=>arr.reduce((n,t)=>n+(t.side==='buy'?1:-1)*(Number(t.size)||0),0);
+ const delta30=signed(windowTrades);
+ put('focusDelta',windowTrades.length?((delta30>0?'+':'')+fmt(delta30)):'—');
+ const waveStats=(from,to)=>{
+   const a=last?trades.filter(t=>t.timestamp>=last-to&&t.timestamp<last-from&&(t.side==='buy'||t.side==='sell')):[];
+   const total=a.reduce((n,t)=>n+(Number(t.size)||0),0);
+   const delta=signed(a),dominant=Math.abs(delta),side=delta>0?'buy':delta<0?'sell':null;
+   const share=total?(Math.max(0,(total+dominant)/2)/total):0;
+   return {total,delta,side,share,count:a.length};
+ };
+ const first=waveStats(6000,3000),second=waveStats(3000,0);
+ const fmtWave=w=>w.count>=3&&w.total>=8?(w.side==='buy'?'↑ ':w.side==='sell'?'↓ ':'↔ ')+Math.round(w.share*100)+'%':'—';
+ put('radarWave1',fmtWave(first));put('radarWave2',fmtWave(second));
+ const priceMove=windowTrades.length>=2?windowTrades[windowTrades.length-1].price-windowTrades[0].price:null;
+ put('radarPriceMove',priceMove==null?'—':(priceMove>0?'+':'')+fmt(priceMove,2)+' pt');
+ const early=windowTrades.filter(t=>t.timestamp<last-15000),late=windowTrades.filter(t=>t.timestamp>=last-15000);
+ const earlySec=early.length>=2?Math.max(1,(early[early.length-1].timestamp-early[0].timestamp)/1000):0;
+ const lateSec=late.length>=2?Math.max(1,(late[late.length-1].timestamp-late[0].timestamp)/1000):0;
+ const accel=early.length>=5&&late.length>=5&&earlySec>=5&&lateSec>=5?((signed(late)/lateSec)-(signed(early)/earlySec)):null;
+ put('radarAcceleration',accel===null?'SEM BASE':accel>1?'↑ COMPRADORA':accel< -1?'↓ VENDEDORA':'ESTÁVEL');
+ const qualified=first.count>=3&&second.count>=3&&first.total>=8&&second.total>=8&&first.side&&first.side===second.side&&first.share>=.57&&second.share>=.57;
+ const stall=windowTrades.length>=12&&recentVolume>=40&&priceMove!==null&&Math.abs(priceMove)<=config[symbol()].tick*3&&Math.abs(delta30)/recentVolume>=.57;
+ let explanation='Coletando fluxo suficiente para análise';
+ if(qualified)explanation='Duas ondas de agressão '+(first.side==='buy'?'compradora':'vendedora')+' detectadas · pesquisa';
+ else if(stall)explanation='Possível absorção: agressão sem deslocamento · não confirmada';
+ else if(windowTrades.length>=12)explanation='Agressão observada · sem duas ondas confirmadas';
+ put('radarInterpretation',explanation);
  const status=value('signal'),up=/COMPRA|ALTA/i.test(status),down=/VENDA|BAIXA/i.test(status);
  const blocked=/BLOQUEAD|SEM ENTRADA|AGUARD|PARADO/i.test(status)||!/Recebendo|DEMO|CSV/i.test(value('healthWin'));
  const active=!blocked&&(up||down);
