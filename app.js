@@ -400,7 +400,7 @@ function updateFocusDashboard(){
  put('focusDirection',active?(up?'↑':'↓'):'↔');
  put('focusDirectionText',active?(up?'COMPRA':'VENDA'):'AGUARDAR');
  put('focusDirectionNote',active?'Viés experimental':'Sem confirmação de entrada');
- put('focusBias',active?(up?'VIÉS ALTA':'VIÉS BAIXA'):'AGUARDANDO');
+ put('focusBias',recentVolume<40||windowTrades.length<12?'AMOSTRA INSUFICIENTE':pct>=57?'COMPRADORES':pct<=43?'VENDEDORES':'EQUILÍBRIO');
  const treasury=value('diStatus');
  const treasuryReady=!/ausente|atrasad|inconclus|aguard|antiga|sem direcao|nao confirmad|CONTRADITOR/i.test(treasury)&&/yield proxy em|DIRECAO CONFIRMADA/i.test(treasury);
  put('focusTreasury',treasuryReady?'DIREÇÃO OBSERVADA':'NÃO CONFIRMADO');
