@@ -340,7 +340,11 @@ function updateFocusDashboard(){
  put('focusBuy',value('buyPct'));put('focusSell',value('sellPct'));
  if($('focusBuyBar'))$('focusBuyBar').style.width=$('buyBar')?.style.width||'50%';
  if($('focusSellBar'))$('focusSellBar').style.width=$('sellBar')?.style.width||'50%';
- put('focusDelta',value('delta'));put('focusVolume',value('burstStatus').split(' · ')[0]);
+ put('focusDelta',value('delta'));
+ const burstText=value('burstStatus');
+ const burstRatio=burstText.match(/(?:^|\\s)(\\d+(?:[.,]\\d+)?)\\s*[×x]/);
+ put('focusVolume',burstRatio?burstRatio[1]+'×':'—');
+
  const clean=Number(value('delta').replace(/\./g,'').replace(',','.').replace(/[^0-9.+-]/g,''));
  if(Number.isFinite(clean)&&value('healthWin').includes('Recebendo')){
    if(!focusDeltaHistory.length||Date.now()-focusDeltaHistory[focusDeltaHistory.length-1].at>=3000){
