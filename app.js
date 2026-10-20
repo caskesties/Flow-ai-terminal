@@ -204,9 +204,23 @@ const shortVotes=directionalWindows.filter(w=>w.ms<=10000);
 const longerVotes=directionalWindows.filter(w=>w.ms>=20000);
 const shortConfirmed=shortVotes.length===2&&shortVotes[0].direction===shortVotes[1].direction;
 const longerConfirmed=longerVotes.length===2&&longerVotes[0].direction===longerVotes[1].direction;
-const treasuryPriceDirection=treasuryFresh&&treasurySeriesFresh&&changeAge<=15000&&!contradictory&&(shortConfirmed||longerConfirmed)?(shortConfirmed?shortVotes[0].direction:longerVotes[0].direction):0;
+// Two consistent windows are preferred. A single 20/30s directional window
+// is allowed only if an independent most-recent price-change vote agrees,
+// the ZN is fresh, and price has not reversed since that effective change.
+const previousChange=lastEffectiveChange?treasurySeries.find((t,i,a)=>i>0&&t.timestamp===lastEffectiveChange.timestamp&&Math.abs(t.value-a[i-1].value)>=.0000001):null;
+const previousChangeIndex=previousChange?treasurySeries.indexOf(previousChange):-1;
+const lastChangeSign=previousChangeIndex>0?Math.sign(treasurySeries[previousChangeIndex].value-treasurySeries[previousChangeIndex-1].value):0;
+const sustainedWindow=longerVotes.length===1&&lastChangeSign===longerVotes[0].direction&&changeAge<=30000;
+const directionEligible=treasuryFresh&&treasurySeriesFresh&&!contradictory&&
+  ((changeAge<=15000&&(shortConfirmed||longerConfirmed))||sustainedWindow);
+const treasuryPriceDirection=directionEligible?
+  (shortConfirmed?shortVotes[0].direction:longerConfirmed?longerVotes[0].direction:longerVotes[0].direction):0;
 const yieldDirection=treasuryLast?.symbol==='ZN'?-treasuryPriceDirection:treasuryPriceDirection;
-const treasuryMovementState=!treasuryFresh||!treasurySeriesFresh?'DADOS ATRASADOS':!lastEffectiveChange?'SEM ALTERACAO EFETIVA':changeAge>15000?'ULTIMA MUDANCA ANTIGA':contradictory?'JANELAS CONTRADITORIAS':yieldDirection===0?'MOVIMENTO INCONCLUSIVO':'DIRECAO CONFIRMADA';
+const treasuryMovementState=!treasuryFresh||!treasurySeriesFresh?'DADOS ATRASADOS':
+ !lastEffectiveChange?'SEM ALTERACAO EFETIVA':
+ changeAge>30000?'ULTIMA MUDANCA ANTIGA':
+ contradictory?'JANELAS CONTRADITORIAS':
+ yieldDirection===0?'MOVIMENTO INCONCLUSIVO':'DIRECAO CONFIRMADA';
 const treasuryDirectionDiagnostics='fonte '+(treasurySeries===treasuryQuoteTicks?'midpoint':'negocios')+' · ultima mudanca '+(Number.isFinite(changeAge)?fmt(changeAge/1000,1)+'s':'indisponivel')+' · votos '+treasuryWindows.map(w=>w.ms/1000+'s '+(w.direction>0?'alta':w.direction<0?'queda':w.valid?'neutro':'sem base')).join(', ')+' · motivo '+treasuryMovementState;
 const recentNasdaq=trades.filter(t=>t.timestamp>now-5000);
 const priorNasdaq=trades.filter(t=>t.timestamp<=now-5000&&t.timestamp>now-185000);
