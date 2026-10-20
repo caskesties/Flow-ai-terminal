@@ -377,7 +377,7 @@ function updateFocusDashboard(){
    const share=total?(Math.max(0,(total+dominant)/2)/total):0;
    return {total,delta,side,share,count:a.length};
  };
- const first=waveStats(6000,3000),second=waveStats(3000,0);
+ const first=waveStats(3000,6000),second=waveStats(0,3000);
  const fmtWave=w=>w.count>=3&&w.total>=8?(w.side==='buy'?'↑ ':w.side==='sell'?'↓ ':'↔ ')+Math.round(w.share*100)+'%':'—';
  put('radarWave1',fmtWave(first));put('radarWave2',fmtWave(second));
  const priceMove=windowTrades.length>=2?windowTrades[windowTrades.length-1].price-windowTrades[0].price:null;
