@@ -23,6 +23,7 @@ from server_signals import ServerFlowSignals
 from structure_model import StructureFlowModel
 from elephant_model import ElephantFlowModel
 from post_signal_monitor import PostSignalMonitor
+from wave_research import WaveResearch
 import push_alerts
 
 MAX_CLIENT_QUEUE=1000
@@ -37,6 +38,7 @@ async def main():
     structure_engine=StructureFlowModel()
     elephant_engine=ElephantFlowModel()
     post_monitor=PostSignalMonitor()
+    wave_research=WaveResearch()
     counts=Counter()
     last_report=time.monotonic()
     clients=set()
@@ -179,6 +181,12 @@ async def main():
                                 replay[item["symbol"]].append(dict(item))
                                 feed_health["last_classified_ms"]=int(time.time()*1000)
                                 post_events=post_monitor.on_trade(item)
+                                wave_events=wave_research.on_trade(item,treasury_fresh=bool(latest_treasury and abs(item['timestamp']-latest_treasury['timestamp'])<=10000))
+                                for research_event in wave_events:
+                                    if research_event['type']=='wave_research':
+                                        print('Wave research: %s %s status=%s blockers=%s' % (research_event['symbol'],research_event['side'],research_event['status'],','.join(research_event['blockers'])),flush=True)
+                                    else:
+                                        print('Wave research outcome: %s %ss signed=%s gap=%s' % (research_event['symbol'],research_event['horizon_seconds'],research_event['signed_move'],research_event['data_gap']),flush=True)
                                 server_signal=signal_engine.on_trade(item)
                                 structure_signal=structure_engine.on_trade(item)
                                 for watch_event in post_events:
