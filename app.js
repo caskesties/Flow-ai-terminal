@@ -467,6 +467,11 @@ function updateFocusDashboard(){
  put('focusDirection',directionSide?(directionSide==='buy'?'↑':'↓'):'↔');
  put('focusDirectionText',directionLabel);
  put('focusDirectionNote',directionStrong?'Duas ondas de agressão alinhadas · entrada não confirmada':directionSide?'Predominância no fluxo de 2 min · entrada não confirmada':directionDataOK?'Fluxo sem direção dominante · entrada não confirmada':'Aguardando amostra de fluxo suficiente');
+ const directionTone=directionSide==='buy'?'is-up':directionSide==='sell'?'is-down':'is-neutral';
+ for(const id of ['focusDirection','focusDirectionText']){
+   const el=$(id);
+   if(el){el.classList.remove('is-up','is-down','is-neutral');el.classList.add(directionTone)}
+ }
  put('focusBias',recentVolume<40||windowTrades.length<12?'AMOSTRA INSUFICIENTE':pct>=57?'COMPRADORES':pct<=43?'VENDEDORES':'EQUILÍBRIO');
  const treasury=value('diStatus');
  const treasuryReady=!/ausente|atrasad|inconclus|aguard|antiga|sem direcao|nao confirmad|CONTRADITOR/i.test(treasury)&&/yield proxy em|DIRECAO CONFIRMADA/i.test(treasury);
