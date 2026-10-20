@@ -368,17 +368,25 @@ function updateFocusDashboard(){
      }
    }
    const magnitude=Math.max(1,...values.map(Math.abs));
+   // SVG avoids inherited flex/CSS rules that previously centered bars.
+   const ns='http://www.w3.org/2000/svg', width=280, height=64, baseline=32;
+   const svg=document.createElementNS(ns,'svg');
+   svg.setAttribute('viewBox','0 0 '+width+' '+height);
+   svg.setAttribute('preserveAspectRatio','none');
+   svg.setAttribute('role','img');
+   svg.setAttribute('aria-label','Delta por períodos de 3 segundos, positivo acima e negativo abaixo de zero');
+   const zero=document.createElementNS(ns,'line');
+   for(const [key,val] of Object.entries({x1:0,y1:baseline,x2:width,y2:baseline,stroke:'#52657b','stroke-width':1}))zero.setAttribute(key,val);
+   svg.append(zero);
+   const step=width/count;
    for(let i=0;i<count;i++){
-     const slot=document.createElement('span');
-     slot.className='delta-slot';
-     if(observed[i]&&values[i]!==0){
-       const bar=document.createElement('i');
-       bar.className=values[i]<0?'negative':'positive';
-       bar.style.height=Math.max(2,Math.abs(values[i])/magnitude*21)+'px';
-       slot.append(bar);
-     }
-     chart.append(slot);
+     if(!observed[i]||values[i]===0)continue;
+     const pixels=Math.max(2,Math.abs(values[i])/magnitude*27);
+     const rect=document.createElementNS(ns,'rect');
+     for(const [key,val] of Object.entries({x:i*step+2,y:values[i]>0?baseline-pixels:baseline,width:step-4,height:pixels,rx:2,fill:values[i]>0?'#32d99c':'#ef6175'}))rect.setAttribute(key,val);
+     svg.append(rect);
    }
+   chart.append(svg);
  }
  const status=value('signal'),up=/COMPRA|ALTA/i.test(status),down=/VENDA|BAIXA/i.test(status);
  const blocked=/BLOQUEAD|SEM ENTRADA|AGUARD|PARADO/i.test(status)||!/Recebendo|DEMO|CSV/i.test(value('healthWin'));
