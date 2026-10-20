@@ -592,10 +592,26 @@ function updateFocusDashboard(){
  const moveAw=aw.length>=2?aw[aw.length-1].price-aw[0].price:0;
  const aTick=config[symbol()].tick;
  const dense=earlyAw.length>=5&&lateAw.length>=5&&aw[aw.length-1].timestamp-aw[0].timestamp>=10000;
+ // Positive delta into resistance -> possible sell absorption; negative into support -> possible buy.
+ // Require meaningful aggressive imbalance, increasing signed cumulative delta and limited price progress.
  const pressureAw=av>=100&&Math.abs(ad)>=100&&Math.abs(ad)/av>=.06;
- const growing=aside&&Math.sign(ld)===Math.sign(ad)&&Math.abs(ld)>=Math.abs(ed)*1.15&&Math.abs(ld)>=35;
- const stalled=dense&&pressureAw&&growing&&Math.abs(moveAw)<=3*aTick;
- if(radarPhase==='CONFIRMADO'&&radarSide)lastConfirmedRadar={side:radarSide,at:last};
+ const growing=aside&&Math.sign(ed)===Math.sign(ad)&&Math.sign(ld)===Math.sign(ad)&&
+   Math.abs(ld)>=Math.abs(ed)*1.15&&Math.abs(ld)>=35;
+ const reference=trades.filter(t=>t.timestamp>=last-105000&&t.timestamp<last-15000);
+ const levelValue=Number($('level')?.value);
+ const manualLevel=$('level')?.value?.trim()&&Number.isFinite(levelValue)?levelValue:null;
+ const previousExtreme=reference.length>=20&&reference[reference.length-1].timestamp-reference[0].timestamp>=30000?
+   (aside==='buy'?Math.max(...reference.map(t=>t.price)):Math.min(...reference.map(t=>t.price))):null;
+ const resistance=aside==='buy'?(manualLevel??previousExtreme):null;
+ const support=aside==='sell'?(manualLevel??previousExtreme):null;
+ const boundary=aside==='buy'?resistance:support;
+ const atLevel=boundary!==null&&Number.isFinite(boundary)&&
+   Math.abs(price-boundary)<=Math.max(4*aTick,Math.abs(boundary)*.00005);
+ const opposingProgress=aside==='buy'?moveAw<=3*aTick:moveAw>=-3*aTick;
+ const stalled=dense&&pressureAw&&growing&&atLevel&&opposingProgress&&
+   Math.abs(moveAw)<=3*aTick;
+ if(radarPhase==='CONFIRMADO'&&radarSide&&(!lastConfirmedRadar||lastConfirmedRadar.side!==radarSide))
+   lastConfirmedRadar={side:radarSide,at:last};
  if(stalled&&radarReady){
   const reverse=aside==='buy'?'VENDA':'COMPRA';
   const afterEntry=lastConfirmedRadar&&last-lastConfirmedRadar.at<120000&&lastConfirmedRadar.side===aside;
@@ -604,7 +620,7 @@ function updateFocusDashboard(){
   if(!absorptionWatch||absorptionWatch.side!==aside||last-absorptionWatch.at>30000)
    absorptionWatch={side:aside,at:last,high:Math.max(...aw.map(t=>t.price)),low:Math.min(...aw.map(t=>t.price))};
   if(radarAlertsAllowed&&Date.now()-absorptionAlertAt>30000){
-   log(kind,reverse,0,'Delta crescente sem deslocamento correspondente; reversão não confirmada');
+   log(kind,reverse,0,'Delta acelerando sem deslocamento junto ao nível '+fmt(boundary,2)+'; reversão não confirmada');
    absorptionAlertAt=Date.now();
   }
  }else if(absorptionWatch&&last-absorptionWatch.at<=30000&&radarReady){
