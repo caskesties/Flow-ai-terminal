@@ -110,6 +110,36 @@ a{color:#216ba7}
  .advanced-details{margin-top:10px!important}
  .advanced-details summary{padding:13px!important;font-size:14px!important}
 }
+
+/* Mobile operational view: retain readable signals, remove secondary row height. */
+@media(max-width:600px){
+ main{padding:5px 10px 12px!important}
+ .compact-header{margin-bottom:3px!important}
+ .compact-header .muted{display:none!important}
+ .compact-header .brand{font-size:19px!important}
+ .compact-header .pill{padding:3px 8px!important}
+ .focus-head,.focus-pressure,.focus-flow.focus-radar,.focus-entry{margin-top:6px!important}
+ .focus-head{padding:8px 12px!important}
+ .focus-head strong{font-size:21px!important}
+ .focus-price strong{font-size:24px!important}
+ .focus-pressure{padding:8px 12px!important}
+ .focus-label{margin-bottom:3px!important}
+ .focus-flow.focus-radar{padding:9px 11px!important}
+ .focus-radar .row>b{font-size:17px!important}
+ .radar-share,.radar-metrics{margin-top:5px!important}
+ .radar-share strong{font-size:25px!important}
+ .radar-bar{margin-top:5px!important;height:10px!important}
+ .radar-metrics strong.metric-outline{padding:4px 10px!important;min-height:34px!important}
+ .radar-waves{margin-top:6px!important;gap:7px!important}
+ .radar-waves>div{min-height:49px!important;padding:6px 5px!important}
+ .radar-waves>div:last-child{display:none!important}
+ .radar-waves strong{font-size:17px!important;margin-top:2px!important}
+ .radar-interpret,.radar-foot{display:none!important}
+ .focus-entry{padding:8px 12px!important}
+ .focus-entry strong{font-size:22px!important;margin-top:2px!important}
+ .advanced-details{margin-top:6px!important}
+ .advanced-details summary{padding:9px!important}
+}
 </style><script>if('serviceWorker' in navigator){navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!sessionStorage.getItem('flow-reload-radar5m-v1')){sessionStorage.setItem('flow-reload-radar5m-v1','1');location.reload()}})}</script></head><body><main><header class="row compact-header"><div><div class="brand">FLOW <em>AI</em> TERMINAL <small>GELO · v4</small></div><div class="muted">Leitura quantitativa de fluxo e liquidez • WIN / GC / MGC / NQ / MNQ</div></div><span class="pill" id="sourceTag">DEMO • ARTIFICIAL</span></header>
 
 
@@ -132,4 +162,4 @@ a{color:#216ba7}
 <section class="panel"><h2>Fluxo por tempo</h2><div class="tf" id="timeframes"></div><p class="muted" id="feedAge">Sem dados.</p><p class="muted">1m, 5m, 15m, 30m e diário. Janelas incompletas são sinalizadas.</p></section>
 <div class="cols"><section class="panel"><h2>Plano de entrada assistido</h2><div class="metric"><span>ESTADO</span><strong id="stage">OBSERVAÇÃO</strong></div><p class="muted" id="reason">Aguardando fluxo.</p><div class="entry"><div class="metric"><span>Entrada</span><strong id="entry">—</strong></div><div class="metric"><span>Stop</span><strong id="stopPrice">—</strong></div><div class="metric"><span>Risco</span><strong id="risk">—</strong></div></div><div class="entry" style="margin-top:8px"><div class="metric"><span>Alvo 1</span><strong id="target1">—</strong></div><div class="metric"><span>Alvo 2</span><strong id="target2">—</strong></div><div class="metric"><span>Nível</span><strong id="breakLevel">132.480</strong></div></div><p class="muted">WIN: stop máximo de 200 pontos. Ouro e Nasdaq: alertas informativos sem exigir stop no Flow; configure e execute seu próprio controle de risco na NinjaTrader. O Flow não envia ordens.</p></section>
 <section class="panel"><h2>Análise explicável</h2><p class="muted" id="intelligence">Delta, velocidade, deslocamento, pressão, liquidez e rompimento. IA preditiva externa não conectada.</p><h2>Alertas e acompanhamento</h2><div class="controls"><button id="enablePush" type="button">Ativar alertas no iPhone</button><button id="testPush" type="button">Testar notificação push</button><span id="pushStatus" class="muted">Para iPhone: adicionar o Flow à Tela de Início antes de ativar.</span></div><p class="muted" id="outcomeSummary">Sem resultados medidos.</p><div id="events" class="events">Nenhum alerta.</div><div class="controls"><button id="export">Exportar CSV</button><button id="clear">Limpar alertas</button></div></section></div>
-<section class="panel"><a href="./gold.html">Módulo Gold anterior →</a><p class="muted">Não identifica nominalmente bancos ou fundos. Absorção e liquidez oculta exigem dados de livro de ofertas. Sinais não validados; não utilizar para execução financeira sem testes fora da amostra, custos, slippage e latência.</p></section></div></details></main><script src="./app.js?v=radar-focus-20261020" defer></script></body></html>
+<section class="panel"><a href="./gold.html">Módulo Gold anterior →</a><p class="muted">Não identifica nominalmente bancos ou fundos. Absorção e liquidez oculta exigem dados de livro de ofertas. Sinais não validados; não utilizar para execução financeira sem testes fora da amostra, custos, slippage e latência.</p></section></div></details></main><script src="./app.js?v=radar-balanced-20261020" defer></script></body></html>
