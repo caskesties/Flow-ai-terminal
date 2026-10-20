@@ -368,7 +368,7 @@ function updateFocusDashboard(){
  put('focusVolume',volumeTrades.length?fmt(minuteVolume):'—');
  // Radar uses classified trade volume only; it does not infer actual institution identities.
  const last=trades.length?trades[trades.length-1].timestamp:0;
- const windowTrades=last?trades.filter(t=>t.timestamp>=last-30000&&t.timestamp<=last&&(t.side==='buy'||t.side==='sell')):[];
+ const windowTrades=last?trades.filter(t=>t.timestamp>=last-120000&&t.timestamp<=last&&(t.side==='buy'||t.side==='sell')):[];
  const recentVolume=windowTrades.reduce((a,t)=>a+(Number(t.size)||0),0);
  const buyVolume=windowTrades.reduce((a,t)=>a+(t.side==='buy'?(Number(t.size)||0):0),0);
  const sellVolume=recentVolume-buyVolume;
@@ -378,8 +378,8 @@ function updateFocusDashboard(){
  if($('radarBuyBar'))$('radarBuyBar').style.width=(pct??50)+'%';
  if($('radarSellBar'))$('radarSellBar').style.width=(pct==null?50:100-pct)+'%';
  const signed=(arr)=>arr.reduce((n,t)=>n+(t.side==='buy'?1:-1)*(Number(t.size)||0),0);
- const delta30=signed(windowTrades);
- put('focusDelta',windowTrades.length?((delta30>0?'+':'')+fmt(delta30)):'—');
+ const delta120=signed(windowTrades);
+ put('focusDelta',windowTrades.length?((delta120>0?'+':'')+fmt(delta120)):'—');
  const waveStats=(from,to)=>{
    const a=last?trades.filter(t=>t.timestamp>=last-to&&t.timestamp<last-from&&(t.side==='buy'||t.side==='sell')):[];
    const total=a.reduce((n,t)=>n+(Number(t.size)||0),0);
@@ -392,17 +392,22 @@ function updateFocusDashboard(){
  put('radarWave1',fmtWave(first));put('radarWave2',fmtWave(second));
  const priceMove=windowTrades.length>=2?windowTrades[windowTrades.length-1].price-windowTrades[0].price:null;
  put('radarPriceMove',priceMove==null?'—':(priceMove>0?'+':'')+fmt(priceMove,2)+' pt');
- const early=windowTrades.filter(t=>t.timestamp<last-15000),late=windowTrades.filter(t=>t.timestamp>=last-15000);
+ const recent30=windowTrades.filter(t=>t.timestamp>=last-30000);
+ const recentBuy=recent30.reduce((n,t)=>n+(t.side==='buy'?(Number(t.size)||0):0),0);
+ const recentTotal=recent30.reduce((n,t)=>n+(Number(t.size)||0),0);
+ const recentShare=recentTotal?Math.round(100*recentBuy/recentTotal):null;
+ const early=recent30.filter(t=>t.timestamp<last-15000),late=recent30.filter(t=>t.timestamp>=last-15000);
  const earlySec=early.length>=2?Math.max(1,(early[early.length-1].timestamp-early[0].timestamp)/1000):0;
  const lateSec=late.length>=2?Math.max(1,(late[late.length-1].timestamp-late[0].timestamp)/1000):0;
  const accel=early.length>=5&&late.length>=5&&earlySec>=5&&lateSec>=5?((signed(late)/lateSec)-(signed(early)/earlySec)):null;
- put('radarAcceleration',accel===null?'SEM BASE':accel>1?'↑ COMPRADORA':accel< -1?'↓ VENDEDORA':'ESTÁVEL');
+ put('radarAcceleration',recentShare===null||recent30.length<5?'SEM BASE':(recentShare>=57?'↑ ':recentShare<=43?'↓ ':'↔ ')+recentShare+'%');
  const qualified=first.count>=3&&second.count>=3&&first.total>=8&&second.total>=8&&first.side&&first.side===second.side&&first.share>=.57&&second.share>=.57;
- const stall=windowTrades.length>=12&&recentVolume>=40&&priceMove!==null&&Math.abs(priceMove)<=config[symbol()].tick*3&&Math.abs(delta30)/recentVolume>=.57;
+ const recentMove=recent30.length>=2?recent30[recent30.length-1].price-recent30[0].price:null;
+ const stall=recent30.length>=12&&recentTotal>=40&&recentMove!==null&&Math.abs(recentMove)<=config[symbol()].tick*3&&Math.abs(signed(recent30))/Math.max(1,recentTotal)>=.57;
  let explanation='Coletando fluxo suficiente para análise';
  if(qualified)explanation='Duas ondas de agressão '+(first.side==='buy'?'compradora':'vendedora')+' detectadas · pesquisa';
  else if(stall)explanation='Possível absorção: agressão sem deslocamento · não confirmada';
- else if(windowTrades.length>=12)explanation='Agressão observada · sem duas ondas confirmadas';
+ else if(windowTrades.length>=12)explanation='Contexto de 2 min · ondas recentes sem confirmação';
  put('radarInterpretation',explanation);
  const status=value('signal'),up=/COMPRA|ALTA/i.test(status),down=/VENDA|BAIXA/i.test(status);
  const blocked=/BLOQUEAD|SEM ENTRADA|AGUARD|PARADO/i.test(status)||!/Recebendo|DEMO|CSV/i.test(value('healthWin'));
