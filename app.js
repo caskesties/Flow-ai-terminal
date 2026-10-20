@@ -459,9 +459,14 @@ function updateFocusDashboard(){
  const status=value('signal'),up=/COMPRA|ALTA/i.test(status),down=/VENDA|BAIXA/i.test(status);
  const blocked=/BLOQUEAD|SEM ENTRADA|AGUARD|PARADO/i.test(status)||!/Recebendo|DEMO|CSV/i.test(value('healthWin'));
  const active=!blocked&&(up||down);
- put('focusDirection',active?(up?'↑':'↓'):'↔');
- put('focusDirectionText',active?(up?'COMPRA':'VENDA'):'AGUARDAR');
- put('focusDirectionNote',active?'Viés experimental':'Sem confirmação de entrada');
+ // Direction is observational; entry confirmation remains separate.
+ const directionDataOK=windowTrades.length>=12&&recentVolume>=40;
+ const directionSide=qualified?first.side:directionDataOK?(pct>=57?'buy':pct<=43?'sell':null):null;
+ const directionStrong=Boolean(qualified);
+ const directionLabel=directionSide?(directionStrong?(directionSide==='buy'?'COMPRADORA':'VENDEDORA'):(directionSide==='buy'?'VIÉS COMPRADOR':'VIÉS VENDEDOR')):'NEUTRO';
+ put('focusDirection',directionSide?(directionSide==='buy'?'↑':'↓'):'↔');
+ put('focusDirectionText',directionLabel);
+ put('focusDirectionNote',directionStrong?'Duas ondas de agressão alinhadas · entrada não confirmada':directionSide?'Predominância no fluxo de 2 min · entrada não confirmada':directionDataOK?'Fluxo sem direção dominante · entrada não confirmada':'Aguardando amostra de fluxo suficiente');
  put('focusBias',recentVolume<40||windowTrades.length<12?'AMOSTRA INSUFICIENTE':pct>=57?'COMPRADORES':pct<=43?'VENDEDORES':'EQUILÍBRIO');
  const treasury=value('diStatus');
  const treasuryReady=!/ausente|atrasad|inconclus|aguard|antiga|sem direcao|nao confirmad|CONTRADITOR/i.test(treasury)&&/yield proxy em|DIRECAO CONFIRMADA/i.test(treasury);
@@ -496,9 +501,7 @@ function updateFocusDashboard(){
  if(pullbackCandidate&&!active){
    const confirmedByTreasury=false; // Signed Treasury direction is not available to this client-side pattern yet.
    put('focusEntry',confirmedByTreasury?'VENDA EXPERIMENTAL · REVISAR':'POSSÍVEL VENDA · AGUARDAR TREASURY');
-   put('focusDirection','↓');
-   put('focusDirectionText',confirmedByTreasury?'VENDA EXPERIMENTAL':'POSSÍVEL VENDA');
-   put('focusDirectionNote','Repique rejeitado + duas ondas vendedoras');
+   put('focusDirectionNote','Repique rejeitado + duas ondas vendedoras · entrada não confirmada');
    put('radarInterpretation','Repique rejeitado em tendência de baixa · pesquisa');
  }
 
