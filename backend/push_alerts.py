@@ -65,3 +65,20 @@ def payload_for_signal(event):
     return {"title":f"FLOW · POSSÍVEL {direction} · {event['symbol']}",
         "body":f"Pressão experimental · preço {price:.2f} · força {strength}/100 · {event['ratio']:.1f}×",
         "tag":f"{event['symbol']}-{event['timestamp']}","timestamp":event["timestamp"],"url":"./index.html"}
+
+def payload_for_radar(event):
+    """Short, OS-rendered iPhone banners. The user controls banner size/dismissal in iOS."""
+    labels={
+        "POSSIVEL_2M":"POSSÍVEL {side} · RADAR 2 MIN",
+        "CONFIRMADO_5M":"{side} CONFIRMADA · RADARES 2 + 5 MIN",
+        "ABSORCAO":"ABSORÇÃO · OBSERVAR {side}",
+        "DELTA_ENFRAQUECENDO":"DELTA ENFRAQUECENDO · OBSERVAR {side}",
+        "REVERSAO_OBSERVADA":"REVERSÃO {side} · FLUXO E PREÇO",
+    }
+    stage=event["stage"]
+    side="COMPRA" if event["side"]=="buy" else "VENDA"
+    message=labels.get(stage,"ALERTA DE FLUXO").format(side=side)
+    return {"title":"FLOW · "+message,
+            "body":event["symbol"]+" · "+("sinal experimental; avalie o gráfico" if stage!="CONFIRMADO_5M" else "confluência técnica; confira o gráfico"),
+            "tag":event["symbol"]+"-"+stage+"-"+str(event["timestamp"]),
+            "timestamp":event["timestamp"],"url":"./index.html"}
