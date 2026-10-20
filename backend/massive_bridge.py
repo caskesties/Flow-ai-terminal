@@ -22,6 +22,7 @@ from flow_classifier import FlowClassifier
 from server_signals import ServerFlowSignals
 from structure_model import StructureFlowModel
 from elephant_model import ElephantFlowModel
+from post_signal_monitor import PostSignalMonitor
 import push_alerts
 
 MAX_CLIENT_QUEUE=1000
@@ -35,6 +36,7 @@ async def main():
     signal_engine=ServerFlowSignals()
     structure_engine=StructureFlowModel()
     elephant_engine=ElephantFlowModel()
+    post_monitor=PostSignalMonitor()
     counts=Counter()
     last_report=time.monotonic()
     clients=set()
@@ -176,19 +178,27 @@ async def main():
                             if item:
                                 replay[item["symbol"]].append(dict(item))
                                 feed_health["last_classified_ms"]=int(time.time()*1000)
+                                post_events=post_monitor.on_trade(item)
                                 server_signal=signal_engine.on_trade(item)
                                 structure_signal=structure_engine.on_trade(item)
+                                for watch_event in post_events:
+                                    print('Post-signal diagnostic: %s %s' % (watch_event['symbol'],watch_event['stage']),flush=True)
+                                    if event_in_session(watch_event['timestamp']):
+                                        for _,contract,q in tuple(clients):
+                                            if contract==watch_event['symbol'] and not q.full():q.put_nowait(watch_event)
                                 for outcome in signal_engine.drain_updates():
                                     print("Server outcome: %s %ss signed=%s favorable=%s adverse=%s gap=%s" % (outcome["symbol"],outcome["horizon_seconds"],outcome["signed_move"],outcome["favorable_excursion"],outcome["adverse_excursion"],outcome["data_gap"]),flush=True)
                                     for _,contract,q in tuple(clients):
                                         if contract==outcome["symbol"] and not q.full():q.put_nowait(outcome)
                                 if server_signal:
+                                    post_monitor.register(server_signal)
                                     print("Server flow diagnostic: %s %s ratio=%s clients=%d" % (server_signal["symbol"],server_signal["side"],server_signal["ratio"],len(clients)),flush=True)
                                     if event_in_session(server_signal["timestamp"]):
                                         asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(server_signal)))
                                         for _,contract,q in tuple(clients):
                                             if contract==server_signal["symbol"] and not q.full():q.put_nowait(server_signal)
                                 if structure_signal:
+                                    post_monitor.register(structure_signal)
                                     signal_engine.alerts[item["symbol"]].append(structure_signal)
                                     signal_engine.pending[item["symbol"]].append({"event":structure_signal,"high":item["price"],"low":item["price"],"last_ts":item["timestamp"],"completed":set()})
                                     print("Model B structure diagnostic: %s %s ratio=%s" % (item["symbol"],structure_signal["side"],structure_signal["ratio"]),flush=True)
@@ -197,6 +207,7 @@ async def main():
                                         for _,contract,q in tuple(clients):
                                             if contract==structure_signal["symbol"] and not q.full():q.put_nowait(structure_signal)
                                 if elephant_signal:
+                                    post_monitor.register(elephant_signal)
                                     signal_engine.alerts[item["symbol"]].append(elephant_signal)
                                     signal_engine.pending[item["symbol"]].append({"event":elephant_signal,"high":item["price"],"low":item["price"],"last_ts":item["timestamp"],"completed":set()})
                                     print("Model C Elephant diagnostic: %s %s ratio=%s" % (item["symbol"],elephant_signal["side"],elephant_signal["ratio"]),flush=True)
