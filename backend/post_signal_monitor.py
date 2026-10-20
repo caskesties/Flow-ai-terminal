@@ -5,6 +5,9 @@ from collections import defaultdict, deque
 
 TICKS = {"MGC": 0.1, "GC": 0.1, "MNQ": 0.25, "NQ": 0.25}
 
+def contract_tick(symbol):
+    return next((tick for prefix,tick in TICKS.items() if symbol.startswith(prefix)),None)
+
 class PostSignalMonitor:
     def __init__(self):
         self.active = {}
@@ -13,7 +16,7 @@ class PostSignalMonitor:
 
     def register(self, signal):
         symbol = signal.get("symbol", "")
-        if symbol not in TICKS or signal.get("side") not in ("buy", "sell"):
+        if contract_tick(symbol) is None or signal.get("side") not in ("buy", "sell"):
             return
         self.active[symbol] = dict(signal_id=signal["timestamp"], time=signal["timestamp"],
             direction=signal["side"], entry=float(signal["price"]),
@@ -22,7 +25,7 @@ class PostSignalMonitor:
 
     def on_trade(self, trade):
         symbol = trade.get("symbol")
-        if symbol not in TICKS or trade.get("side") not in ("buy", "sell"):
+        if contract_tick(symbol) is None or trade.get("side") not in ("buy", "sell"):
             return []
         state = self.active.get(symbol)
         if not state:
@@ -42,7 +45,7 @@ class PostSignalMonitor:
         q.append(dict(timestamp=ts, price=px, size=size, side=trade["side"]))
         while q and ts-q[0]["timestamp"] > 15000:
             q.popleft()
-        tick=TICKS[symbol]
+        tick=contract_tick(symbol)
         direction = 1 if state["direction"] == "buy" else -1
         state["best"] = max(state["best"], px) if direction == 1 else min(state["best"], px)
         favorable = direction*(state["best"]-state["entry"])/tick
