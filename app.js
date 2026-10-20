@@ -338,7 +338,31 @@ renderAlerts();reset();$('wsWrap').classList.toggle('hidden',$('source').value!=
 const autoStartFlow=()=>{if(running||reconnectTimer||$('source').value!=='ws')return;const token=$('bridgeToken').value.trim();if(token.length<24){$('status').textContent='Conexão automática pronta · informe o token para iniciar';return}reconnectAttempt=0;$('start').click()};
 if($('bridgeToken')){$('bridgeToken').addEventListener('change',autoStartFlow)}
 setTimeout(autoStartFlow,600);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible'||$('source').value!=='ws')return;if(ws?.readyState===WebSocket.OPEN)return;if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null}resumeConnection=true;reconnectAttempt=0;const token=$('bridgeToken').value.trim();if(token.length>=24)$('start').click();});
+// iOS may freeze an OPEN socket while another app is in foreground. On return,
+// force a fresh connection if data is stale and let the bridge replay recent prints.
+let lastForegroundRecovery=0;
+function recoverForegroundFeed(){
+ if(document.visibilityState==='hidden'||$('source').value!=='ws')return;
+ const token=$('bridgeToken').value.trim();
+ if(token.length<24)return;
+ const stale=!lastIngest||Date.now()-lastIngest>5000;
+ const connected=ws?.readyState===WebSocket.OPEN;
+ if(connected&&!stale)return;
+ if(Date.now()-lastForegroundRecovery<2500)return;
+ lastForegroundRecovery=Date.now();
+ if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null}
+ resumeConnection=true;reconnectAttempt=0;
+ if(ws){ws.onclose=null;try{ws.close()}catch{}ws=null}
+ // Preserve existing market context until the replay replaces stale prices.
+ running=false;$('start').disabled=false;$('stop').disabled=true;
+ $('healthWin').textContent='Retomando dados recentes';
+ $('healthQuality').textContent='Sinais bloqueados · sincronizando';
+ $('status').textContent='iPhone retomado · sincronizando histórico recente';
+ $('start').click();
+}
+document.addEventListener('visibilitychange',recoverForegroundFeed);
+window.addEventListener('pageshow',recoverForegroundFeed);
+window.addEventListener('focus',recoverForegroundFeed);
 
 function updateFocusDashboard(){
  const put=(id,value)=>{const e=$(id);if(e)e.textContent=value};
