@@ -34,7 +34,7 @@ class WaveResearchTests(unittest.TestCase):
                             "side":"buy","size":3},treasury_fresh=True)
         # Current candle trades cluster above 105; the short structure breakout is false.
         events=[]
-        for i in range(25):
+        for i in range(55):
             events.extend(model.on_trade({"symbol":sym,"timestamp":240000+i*500,
                 "price":106,"side":"buy" if i%8 else "sell","size":4},treasury_fresh=True))
         candidates=[e for e in events if e["type"]=="wave_research"]
