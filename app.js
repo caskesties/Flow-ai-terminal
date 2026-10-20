@@ -342,7 +342,7 @@ function updateFocusDashboard(){
  if($('focusSellBar'))$('focusSellBar').style.width=$('sellBar')?.style.width||'50%';
  put('focusDelta',value('delta'));
  const burstText=value('burstStatus');
- const burstRatio=burstText.match(/(?:^|\\s)(\\d+(?:[.,]\\d+)?)\\s*[×x]/);
+ const burstRatio=burstText.match(/([0-9]+(?:[.,][0-9]+)?)\s*[×x]/);
  put('focusVolume',burstRatio?burstRatio[1]+'×':'—');
 
  const clean=Number(value('delta').replace(/\./g,'').replace(',','.').replace(/[^0-9.+-]/g,''));
