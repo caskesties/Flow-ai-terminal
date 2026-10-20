@@ -329,4 +329,49 @@ const autoStartFlow=()=>{if(running||reconnectTimer||$('source').value!=='ws')re
 if($('bridgeToken')){$('bridgeToken').addEventListener('change',autoStartFlow)}
 setTimeout(autoStartFlow,600);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='visible'||$('source').value!=='ws')return;if(ws?.readyState===WebSocket.OPEN)return;if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null}resumeConnection=true;reconnectAttempt=0;const token=$('bridgeToken').value.trim();if(token.length>=24)$('start').click();});
+
+const focusDeltaHistory=[];
+function updateFocusDashboard(){
+ const put=(id,value)=>{const e=$(id);if(e)e.textContent=value};
+ const value=id=>$(id)?.textContent?.trim()||'—';
+ put('focusInstrument',$('instrument')?.selectedOptions?.[0]?.textContent||'MNQ');
+ put('focusPrice',value('price'));
+ put('focusFeed',value('healthWin'));
+ put('focusBuy',value('buyPct'));put('focusSell',value('sellPct'));
+ if($('focusBuyBar'))$('focusBuyBar').style.width=$('buyBar')?.style.width||'50%';
+ if($('focusSellBar'))$('focusSellBar').style.width=$('sellBar')?.style.width||'50%';
+ put('focusDelta',value('delta'));put('focusVolume',value('burstStatus').split(' · ')[0]);
+ const clean=Number(value('delta').replace(/\./g,'').replace(',','.').replace(/[^0-9.+-]/g,''));
+ if(Number.isFinite(clean)&&value('healthWin').includes('Recebendo')){
+   if(!focusDeltaHistory.length||Date.now()-focusDeltaHistory[focusDeltaHistory.length-1].at>=3000){
+      focusDeltaHistory.push({at:Date.now(),v:clean});if(focusDeltaHistory.length>22)focusDeltaHistory.shift();
+   }
+ }
+ const chart=$('focusHistogram');
+ if(chart){chart.replaceChildren();const magnitude=Math.max(1,...focusDeltaHistory.map(x=>Math.abs(x.v)));
+   for(const point of focusDeltaHistory){const bar=document.createElement('i');bar.className=point.v<0?'negative':'';bar.style.height=Math.max(5,Math.abs(point.v)/magnitude*46)+'px';chart.append(bar)}
+ }
+ const status=value('signal'),up=/COMPRA|ALTA/i.test(status),down=/VENDA|BAIXA/i.test(status);
+ const blocked=/BLOQUEAD|SEM ENTRADA|AGUARD|PARADO/i.test(status)||!/Recebendo|DEMO|CSV/i.test(value('healthWin'));
+ const active=!blocked&&(up||down);
+ put('focusDirection',active?(up?'↑':'↓'):'↔');
+ put('focusDirectionText',active?(up?'COMPRA':'VENDA'):'AGUARDAR');
+ put('focusDirectionNote',active?'Viés experimental':'Sem confirmação de entrada');
+ put('focusBias',active?(up?'VIÉS ALTA':'VIÉS BAIXA'):'AGUARDANDO');
+ const treasury=value('diStatus');
+ const treasuryReady=!/ausente|atrasad|inconclus|aguard|antiga|sem direcao|nao confirmad|CONTRADITOR/i.test(treasury)&&/yield proxy em|DIRECAO CONFIRMADA/i.test(treasury);
+ put('focusTreasury',treasuryReady?'DIREÇÃO OBSERVADA':'NÃO CONFIRMADO');
+ put('focusTreasuryNote',treasuryReady?'ZN: movimento registrado':'ZN: aguardar direção válida');
+ const breakoutOK=/CONFIRMADO|ROMPIMENTO/i.test(value('stage'))&&active;
+ put('focusBreak',breakoutOK?'✓':'—');
+ put('focusAbs',/poss[ií]vel|absor[cç][aã]o/i.test(value('absStatus'))?'ATENÇÃO':'—');
+ // Criteria are indicators, not a numerical probability estimate.
+ const confirmations=[active,treasuryReady,breakoutOK,/OK/i.test(value('healthQuality')),value('delta')!=='—'];
+ put('focusConfluence',confirmations.filter(Boolean).length+' / 5');
+ put('focusConfluenceNote',active?'Condições em observação':'Entrada ainda bloqueada');
+ put('focusEntry',active?status:'AGUARDAR');
+ put('focusRisk',value('stopPrice')+' / '+value('target1'));
+ const card=$('focusEntry');if(card)card.style.color=active?(up?'#40d69c':'#ff7388'):'#e7effb';
+}
+setInterval(updateFocusDashboard,1000);updateFocusDashboard();
 })();
