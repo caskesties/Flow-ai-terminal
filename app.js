@@ -497,8 +497,8 @@ function updateFocusDashboard(){
  setRadarCardTone('radarPriceMove5m',price5m==null||!Number.isFinite(price5m)?null:price5m>0?'buy':price5m<0?'sell':null);
  put('focusVolume5m',trades5m.length?fmt(volume5m):'—');
  const sample5m=trades5m.length>=12&&volume5m>=40;
- put('focusBias5m',!sample5m?'AMOSTRA INSUFICIENTE':share5m>=57?'COMPRADORES':share5m<=43?'VENDEDORES':'EQUILÍBRIO');
- put('radarInterpretation5m',!sample5m?'Coletando fluxo suficiente para análise':share5m>=57?'Contexto de 5 min · predominância compradora · entrada não confirmada':share5m<=43?'Contexto de 5 min · predominância vendedora · entrada não confirmada':'Contexto de 5 min · equilíbrio entre compradores e vendedores');
+ put('focusBias5m',!sample5m?'AMOSTRA INSUFICIENTE':share5m>=53?'COMPRADORES':share5m<=47?'VENDEDORES':'EQUILÍBRIO');
+ put('radarInterpretation5m',!sample5m?'Coletando fluxo suficiente para análise':share5m>=53?'Contexto de 5 min · predominância compradora · entrada não confirmada':share5m<=47?'Contexto de 5 min · predominância vendedora · entrada não confirmada':'Contexto de 5 min · equilíbrio entre compradores e vendedores');
  const status=value('signal'),up=/COMPRA|ALTA/i.test(status),down=/VENDA|BAIXA/i.test(status);
  const blocked=/BLOQUEAD|SEM ENTRADA|AGUARD|PARADO/i.test(status)||!/Recebendo|DEMO|CSV/i.test(value('healthWin'));
  const active=!blocked&&(up||down);
