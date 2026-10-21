@@ -57,7 +57,12 @@ async def deliver(payload):
                 SUBSCRIPTIONS.pop(endpoint,None)
                 save_subscriptions()
             else:print("Push delivery failure: "+str(type(e).__name__),flush=True)
-        except Exception as e:print("Push delivery failure: "+str(type(e).__name__),flush=True)
+        except Exception as e:
+            # Record the failing code location without logging keys or push endpoints.
+            tb=e.__traceback__
+            while tb and tb.tb_next:tb=tb.tb_next
+            stage=(tb.tb_frame.f_code.co_name if tb else "unknown")
+            print("Push delivery failure: "+type(e).__name__+" stage="+stage,flush=True)
 def payload_for_signal(event):
     direction="COMPRA" if event["side"]=="buy" else "VENDA"
     price=event["price"]
