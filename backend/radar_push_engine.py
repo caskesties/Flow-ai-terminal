@@ -2,16 +2,37 @@
 Observational only; never places orders. Market data classifications are estimates.
 """
 from collections import defaultdict, deque
+from bisect import bisect_left
+
+class _RadarWindow:
+    """A time slice with O(1) cumulative volume/delta, preserving every print."""
+    def __init__(self,rows,start,end):
+        self.rows,self.start,self.end=rows,start,end
+    def __len__(self):return self.end-self.start
+    def __iter__(self):return iter(self.rows[self.start:self.end])
+    def __getitem__(self,index):
+        if index<0:index+=len(self)
+        if index<0 or index>=len(self):raise IndexError(index)
+        return self.rows[self.start+index]
+    def metrics(self):
+        if not len(self):return 0,0
+        first,last=self[0],self[-1]
+        volume=last["_volume"]-first["_volume"]+int(first["size"])
+        delta=last["_delta"]-first["_delta"]+int(first["size"])*(1 if first["side"]=="buy" else -1)
+        return volume,delta
+
 
 class RadarPushEngine:
     def __init__(self):
         self.trades=defaultdict(lambda:deque(maxlen=50000))
+        self.cumulative=defaultdict(lambda:[0,0])
         self.phase=defaultdict(lambda:("NONE",None))
         self.last_emit={}
         self.abs_watch={}
         self.last_abs={}
     @staticmethod
     def metrics(rows):
+        if isinstance(rows,_RadarWindow):return rows.metrics()
         vol=sum(int(x["size"]) for x in rows)
         delta=sum(int(x["size"])*(1 if x["side"]=="buy" else -1) for x in rows)
         return vol,delta
@@ -32,10 +53,20 @@ class RadarPushEngine:
         ts=int(item["timestamp"])
         rows=self.trades[symbol]
         if rows and ts<rows[-1]["timestamp"]:return []
-        rows.append(item)
+        totals=self.cumulative[symbol]
+        size=int(item["size"])
+        totals[0]+=size
+        totals[1]+=size*(1 if item["side"]=="buy" else -1)
+        rows.append(dict(item,_volume=totals[0],_delta=totals[1]))
         while rows and ts-rows[0]["timestamp"]>340000:rows.popleft()
+        # One ordered snapshot per print; slice only the requested time range.
+        # Repeated Python scans over the full 5-minute deque caused CPU backlog.
+        ordered=list(rows)
+        timestamps=[x["timestamp"] for x in ordered]
         def window(a,b):
-            return [x for x in rows if ts-b<=x["timestamp"]<ts-a]
+            start=bisect_left(timestamps,ts-b)
+            end=bisect_left(timestamps,ts-a)
+            return _RadarWindow(ordered,start,end)
         recent60=window(0,60000)
         recent120=window(0,120000)
         recent300=window(0,300000)
