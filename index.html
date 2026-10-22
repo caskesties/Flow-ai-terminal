@@ -141,6 +141,14 @@ a{color:#216ba7}
  .advanced-details summary{padding:9px!important}
 }
 .focus-absorption{background:white;border:1px solid #cbdce9;border-radius:14px;padding:8px 12px;margin-top:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;color:#193148}.focus-absorption small{font-size:11px}.focus-absorption strong{font-size:12px;color:#a66d19;text-align:right}
+
+/* Keep feed-status changes from moving the entire mobile dashboard. */
+@media(max-width:600px){
+ .compact-header{display:grid!important;grid-template-columns:minmax(0,1fr);gap:3px!important;align-items:center;justify-items:start}
+ .compact-header>div{min-width:0;width:100%}
+ .compact-header #sourceTag{grid-column:1;justify-self:start;box-sizing:border-box;min-height:20px;line-height:14px;white-space:nowrap}
+ .focus-price strong,.radar-share strong,.metric-outline{font-variant-numeric:tabular-nums}
+}
 </style><script>
 if('serviceWorker' in navigator){
  let refreshed=false;
