@@ -56,7 +56,7 @@ async def main():
             await asyncio.sleep(1)
             now=int(time.time()*1000)
             age=now-feed_health["last_market_event_ms"] if feed_health["last_market_event_ms"] else None
-            status="LIVE" if feed_health["provider_connected"] and age is not None and age<=3000 else "STALE"
+            status="LIVE" if feed_health["provider_connected"] and age is not None and -5000<=age<=3000 else "STALE"
             event={"type":"feed_health","status":status,"provider_connected":feed_health["provider_connected"],"last_market_event_ms":feed_health["last_market_event_ms"],"last_classified_ms":feed_health["last_classified_ms"],"age_ms":age,"server_timestamp":now}
             for _,_,q in tuple(clients):
                 if not q.full():q.put_nowait(event)
@@ -151,7 +151,10 @@ async def main():
                                 continue
                             if not authorized:continue
                             if msg.get("ev") in ("T","Q"):
-                                feed_health["last_market_event_ms"]=int(time.time()*1000)
+                                try:
+                                    event_ms=int((max(msg.get("bt",0),msg.get("at",0)) if msg.get("ev")=="Q" else 0) or msg["t"])
+                                    feed_health["last_market_event_ms"]=event_ms
+                                except (KeyError,TypeError,ValueError):pass
                                 counts[msg["ev"]]+=1
                                 counts[msg["ev"]+"."+str(msg.get("sym","unknown"))]+=1
                             if msg.get("ev")=="T" and str(msg.get("sym","")).startswith("ZN"):
@@ -191,7 +194,7 @@ async def main():
                                 except (KeyError,ValueError,TypeError):pass
                             if item:
                                 replay[item["symbol"]].append(dict(item))
-                                feed_health["last_classified_ms"]=int(time.time()*1000)
+                                feed_health["last_classified_ms"]=item["timestamp"]
                                 radar_events=radar_push_engine.on_trade(item)
                                 for radar_event in radar_events:
                                     if event_in_session(radar_event['timestamp']):
