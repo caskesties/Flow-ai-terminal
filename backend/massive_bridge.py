@@ -131,6 +131,9 @@ async def main():
                     async for raw in ws:
                         data=json.loads(raw)
                         for msg in data if isinstance(data,list) else [data]:
+                            # A buffered provider recv may complete without yielding. Keep
+                            # browser handshakes, heartbeats and delivery responsive under load.
+                            await asyncio.sleep(0)
                             if msg.get("ev")=="status":
                                 if msg.get("status")=="auth_success":
                                     print("Massive authentication OK",flush=True)
