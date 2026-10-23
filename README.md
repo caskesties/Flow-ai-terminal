@@ -48,3 +48,47 @@ Painel principal: FIBO e região próxima ou prioritária de 50–61,8%. A refer
 - Confrontar delta e avanço real de preço: agressão persistente com deslocamento pequeno sugere **possível** absorção, não confirmação de player ou reversão; delta invertido com deslocamento adverso sugere possível reversão.
 - Barra Elefante 2m é confirmação adicional opcional, nunca bloqueio para modelos de entrada independentes.
 - Critérios permanecem experimentais; exigem backtest e teste ao vivo antes de confiança operacional. Não executar saídas/parciais automaticamente.
+
+
+## Candles e estratégias por estágios — 2026-10-23
+
+`backend/candle_flow.py` é a fonte dos novos alertas de entrada. Forma OHLC e
+volume com todos os negócios recebidos, em intervalos fixos de 120/300 segundos
+pelo timestamp do fornecedor. Delta usa apenas agressão classificada; exige ao
+menos 80% de cobertura classificada e 70% do volume classificado por BBO para
+confirmar. A classificação continua estimada, não identifica instituições.
+
+- **Absorção com reação:** atividade 1,3x a referência recente e dominância >=57%
+  (delta líquido >=14% do volume total), sem avanço e com amplitude limitada,
+  junto ao extremo de três candles completos. Cap de amplitude: 10% da mediana
+  das amplitudes anteriores, limitado entre 3 e 12 ticks; deslocamento líquido
+  até 3 ticks. Pavio de rejeição >=25% da amplitude e fechamento no lado dos
+  60% confirmam a rejeição. Só depois, rompimento da reação + delta recente
+  alinhado pode gerar gatilho. Não exige virada do delta acumulado da sessão.
+- **Rompimento com reteste:** fechamento além do extremo de três candles,
+  corpo >=50%, volume >=1,3x mediana e delta alinhado; aguarda reteste em outro
+  candle, fechamento sustentado e retomada com delta de 5 segundos alinhado.
+- Gatilhos só no cruzamento, no máximo 2 ticks além do preço definido; não
+  reaproveitar um rompimento antigo após o delta mudar. Invalidação por preço,
+  expiração por tempo e lacuna >3 segundos; não confirmar com candle parcial,
+  aquecimento incompleto ou classificação insuficiente. Mínimos de volume e
+  demais parâmetros são provisórios: exigem calibração por contrato e sessão.
+- Candles completos requerem negócios até 2s das bordas e sem lacunas >3s.
+  Três candles completos são o contexto mínimo (aquecimento 6–8 min no 2m,
+  15–20 min no 5m, dependendo do horário de início). Não inventar candles vazios.
+- Painel recebe `candle_state` a cada segundo e `candle_signal` nas transições.
+  Restaura o estado do servidor ao reconectar. Negócios atualizam candles a cada
+  print; detecção de formação é limitada a 4Hz para evitar sobrecarga.
+- Novos banners de entrada saem apenas em `GATILHO_CONFIRMADO`, nas janelas
+  de alerta já existentes. Modelos A/B/C e radares permanecem contexto/histórico,
+  sem banners de entrada duplicados. Detecção local antiga de absorção não
+  governa a tela principal ao vivo. Pós-sinal legado é diagnóstico separado.
+- O servidor continua analisando sem o iPhone em primeiro plano. Reinício do
+  processo exige novo aquecimento; snapshots não são persistência de sessão.
+- **VWAP da sessão ainda indisponível:** histórico integral da sessão não foi
+  integrado. Não apresentar VWAP parcial como equivalente à NinjaTrader.
+
+Validação: testes sintéticos de candles, compra/venda, reteste, delta contrário,
+amplitude ampla, classificação insuficiente, gaps, duplicatas, dados atrasados e
+isolamento de contratos. Não são backtest de rentabilidade. Publicação e entrega
+real de push exigem confirmação separada no Northflank/iPhone. Não executa ordens.

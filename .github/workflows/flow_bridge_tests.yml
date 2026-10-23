@@ -20,6 +20,11 @@ jobs:
       - name: Run BBO flow classification tests
         run: cd backend && python -m unittest -v test_flow_classifier.py test_server_signals.py test_post_signal_monitor.py
 
+      - name: Run candle formation and staged strategy regressions
+        run: cd backend && python -m unittest -v test_candle_flow.py
+      - name: Check browser candle panel states
+        run: node --check app.js && node scripts/test_candle_panel.js
+
       - name: Run independent absorption regression tests
         if: always()
         run: cd backend && python -m unittest -v test_absorption_research.py

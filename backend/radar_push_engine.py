@@ -23,7 +23,8 @@ class _RadarWindow:
 
 
 class RadarPushEngine:
-    def __init__(self):
+    def __init__(self, legacy_absorption=False):
+        self.legacy_absorption=legacy_absorption
         self.trades=defaultdict(lambda:deque(maxlen=50000))
         self.cumulative=defaultdict(lambda:[0,0])
         self.phase=defaultdict(lambda:("NONE",None))
@@ -98,6 +99,9 @@ class RadarPushEngine:
                                timestamp=ts,price=item["price"]))
             self.last_emit[(symbol,phase,pre)]=ts
         self.phase[symbol]=(phase,pre)
+        # Absorption alerts now come exclusively from CandleFlowEngine.
+        # Radar agreement describes flow context, not a candle entry trigger.
+        if not self.legacy_absorption:return events
         # Absorption research: fresh signed aggression rises while price stays in a tight range
         # near an independently observed prior price extreme (support / resistance).
         sample=window(0,15000)

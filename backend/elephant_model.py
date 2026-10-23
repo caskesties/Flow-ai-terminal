@@ -91,7 +91,7 @@ class ElephantFlowModel:
         closing_wick=bar["h"]-bar["c"] if side=="buy" else bar["c"]-bar["l"]
         closing_wick_tolerance = span*0.05
         if closing_wick < -1e-7 or closing_wick>closing_wick_tolerance+1e-7:return
-        # At least 80% of the whole candle must be real body; large opposing
+        # At least 95% of the whole candle must be real body; large opposing
         # rejection wicks should not qualify as a solid Elephant Bar.
         if body/span<.95:return
         self.diagnostics[sym]["wickless"]+=1
