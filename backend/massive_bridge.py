@@ -26,6 +26,7 @@ from post_signal_monitor import PostSignalMonitor
 from wave_research import WaveResearch
 from absorption_research import AbsorptionResearch
 from radar_push_engine import RadarPushEngine
+from candle_flow import CandleFlowEngine, push_payload as candle_push_payload
 import push_alerts
 
 MAX_CLIENT_QUEUE=1000
@@ -43,6 +44,8 @@ async def main():
     wave_research=WaveResearch()
     absorption_research=AbsorptionResearch()
     radar_push_engine=RadarPushEngine()
+    candle_engine=CandleFlowEngine()
+    candle_published={}
     counts=Counter()
     last_report=time.monotonic()
     clients=set()
@@ -101,6 +104,7 @@ async def main():
             for offset in range(0,len(snapshot),150):
                 await ws.send(json.dumps({"type":"replay_batch","trades":snapshot[offset:offset+150]}))
             await ws.send(json.dumps({"type":"replay_complete","count":len(snapshot)}))
+            await ws.send(json.dumps(candle_engine.snapshot(requested)))
             if requested.startswith(("MNQ","NQ")):
                 treasury_snapshot=[x for x in treasury_replay if 0<=now_ms-x["timestamp"]<=180000]
                 for offset in range(0,len(treasury_snapshot),150):
@@ -189,16 +193,31 @@ async def main():
                                     raw_trade={"symbol":str(msg["sym"]),
                                         "timestamp":int(msg["t"]),"price":float(msg["p"]),
                                         "size":float(msg["s"]),
-                                        "side":item["side"] if item else None}
+                                        "side":item["side"] if item else None,
+                                        "method":item.get("method") if item else None,
+                                        "trade_id":msg.get("q")}
                                     elephant_signal=elephant_engine.on_trade(raw_trade)
+                                    candle_events=candle_engine.on_trade(raw_trade)
+                                    for candle_event in candle_events:
+                                        print('Candle state transition: '+json.dumps(candle_event,ensure_ascii=False),flush=True)
+                                        for _,contract,q in tuple(clients):
+                                            if contract==raw_trade['symbol'] and not q.full():q.put_nowait(candle_event)
+                                        if candle_event['stage']=='GATILHO_CONFIRMADO':
+                                            signal_engine.pending[raw_trade['symbol']].append({'event':candle_event,'high':raw_trade['price'],'low':raw_trade['price'],'last_ts':raw_trade['timestamp'],'completed':set()})
+                                            print('Candle flow trigger: %s %s %ss delta5s=%s' % (raw_trade['symbol'],candle_event['model'],candle_event['timeframe_seconds'],candle_event['delta_5s']),flush=True)
+                                            if event_in_session(candle_event['timestamp']):
+                                                asyncio.create_task(push_alerts.deliver(candle_push_payload(candle_event)))
+                                    if raw_trade['timestamp']-candle_published.get(raw_trade['symbol'],0)>=1000:
+                                        candle_published[raw_trade['symbol']]=raw_trade['timestamp']
+                                        state=candle_engine.snapshot(raw_trade['symbol'])
+                                        for _,contract,q in tuple(clients):
+                                            if contract==raw_trade['symbol'] and not q.full():q.put_nowait(state)
                                 except (KeyError,ValueError,TypeError):pass
                             if item:
                                 replay[item["symbol"]].append(dict(item))
                                 feed_health["last_classified_ms"]=item["timestamp"]
-                                radar_events=radar_push_engine.on_trade(item)
-                                for radar_event in radar_events:
-                                    if event_in_session(radar_event['timestamp']):
-                                        asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_radar(radar_event)))
+                                # Radar direction remains context; candles own entry pushes.
+                                radar_push_engine.on_trade(item)
                                 post_events=post_monitor.on_trade(item)
                                 absorption_observation=absorption_research.on_trade(item)
                                 if absorption_observation:
@@ -225,7 +244,7 @@ async def main():
                                     post_monitor.register(server_signal)
                                     print("Server flow diagnostic: %s %s ratio=%s clients=%d" % (server_signal["symbol"],server_signal["side"],server_signal["ratio"],len(clients)),flush=True)
                                     if event_in_session(server_signal["timestamp"]):
-                                        asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(server_signal)))
+                                        pass # Legacy model A: diagnostic history only.
                                         for _,contract,q in tuple(clients):
                                             if contract==server_signal["symbol"] and not q.full():q.put_nowait(server_signal)
                                 if structure_signal:
@@ -234,7 +253,7 @@ async def main():
                                     signal_engine.pending[item["symbol"]].append({"event":structure_signal,"high":item["price"],"low":item["price"],"last_ts":item["timestamp"],"completed":set()})
                                     print("Model B structure diagnostic: %s %s ratio=%s" % (item["symbol"],structure_signal["side"],structure_signal["ratio"]),flush=True)
                                     if event_in_session(structure_signal["timestamp"]):
-                                        asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(structure_signal)))
+                                        pass # Legacy model B: diagnostic history only.
                                         for _,contract,q in tuple(clients):
                                             if contract==structure_signal["symbol"] and not q.full():q.put_nowait(structure_signal)
                                 if elephant_signal:
@@ -243,7 +262,7 @@ async def main():
                                     signal_engine.pending[item["symbol"]].append({"event":elephant_signal,"high":item["price"],"low":item["price"],"last_ts":item["timestamp"],"completed":set()})
                                     print("Model C Elephant diagnostic: %s %s ratio=%s" % (item["symbol"],elephant_signal["side"],elephant_signal["ratio"]),flush=True)
                                     if event_in_session(elephant_signal["timestamp"]):
-                                        asyncio.create_task(push_alerts.deliver(push_alerts.payload_for_signal(elephant_signal)))
+                                        pass # Elephant: optional context, not a separate entry banner.
                                         for _,contract,q in tuple(clients):
                                             if contract==elephant_signal["symbol"] and not q.full():q.put_nowait(elephant_signal)
                                 counts["classified"]+=1

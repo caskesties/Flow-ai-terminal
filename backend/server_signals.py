@@ -90,6 +90,7 @@ class ServerFlowSignals:
                 adverse=(entry-record["low"]) if sign==1 else (record["high"]-entry)
                 signed=(trade["price"]-entry)*sign
                 update={"type":"server_outcome","symbol":symbol,"signal_timestamp":event["timestamp"],
+                    "setup_id":event.get("setup_id"),
                     "horizon_seconds":seconds,"observed_timestamp":ts,"observed_price":trade["price"],
                     "signed_move":round(signed,6),"favorable_excursion":round(max(0,favorable),6),
                     "adverse_excursion":round(max(0,adverse),6),
