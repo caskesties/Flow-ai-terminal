@@ -80,7 +80,10 @@ confirmar. A classificação continua estimada, não identifica instituições.
   Restaura o estado do servidor ao reconectar. Negócios atualizam candles a cada
   print; detecção de formação é limitada a 4Hz para evitar sobrecarga.
 - Novos banners de entrada saem apenas em `GATILHO_CONFIRMADO`, nas janelas
-  de alerta já existentes. Modelos A/B/C e radares permanecem contexto/histórico,
+  de alerta: segunda a sexta 06:29–08:30 e 16:30–20:00; domingo 17:00–20:00,
+  sempre em America/Los_Angeles (com horário de verão automático). Sábado sem
+  push; o instante final de cada janela é exclusivo. A leitura no painel continua
+  fora dessas janelas. Modelos A/B/C e radares permanecem contexto/histórico,
   sem banners de entrada duplicados. Detecção local antiga de absorção não
   governa a tela principal ao vivo. Pós-sinal legado é diagnóstico separado.
 - O servidor continua analisando sem o iPhone em primeiro plano. Reinício do

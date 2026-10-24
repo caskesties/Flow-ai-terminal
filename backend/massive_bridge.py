@@ -3,18 +3,7 @@ Requires a private TLS reverse proxy and server-side Massive key.
 Never serve this directly to the public internet.
 """
 import asyncio,json,os,time
-from datetime import datetime,time as clock_time
-from zoneinfo import ZoneInfo
-
-PACIFIC=ZoneInfo('America/Los_Angeles')
-def event_in_session(timestamp_ms):
-    return within_session(datetime.fromtimestamp(timestamp_ms/1000, PACIFIC))
-
-def within_session(now=None):
-    local=(now or datetime.now(PACIFIC)).astimezone(PACIFIC)
-    if local.weekday()>=5:return False
-    t=local.time()
-    return clock_time(6,29)<=t<clock_time(8,30) or clock_time(16,30)<=t<clock_time(20,0)
+from push_schedule import event_in_session, within_session
 
 from collections import Counter,defaultdict,deque
 import websockets
