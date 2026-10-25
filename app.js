@@ -485,7 +485,8 @@ window.addEventListener('focus',recoverForegroundFeed);
 function updateFocusDashboard(){
  const put=(id,value)=>{const e=$(id);if(e)e.textContent=value};
  const value=id=>$(id)?.textContent?.trim()||'—';
- put('focusInstrument',$('instrument')?.selectedOptions?.[0]?.textContent||'MNQ');
+ put('focusInstrument',symbol());
+ if($('focusInstrument'))$('focusInstrument').title=$('instrument')?.selectedOptions?.[0]?.textContent||symbol();
  put('focusPrice',value('price'));
  put('focusFeed',value('healthWin'));
  const badge=$('sourceTag');
@@ -818,4 +819,10 @@ function scheduleFocusRefresh(){
  setTimeout(()=>{focusRenderPending=false;updateFocusDashboard()},120);
 }
 setInterval(updateFocusDashboard,1000);updateFocusDashboard();
+// Keep badge colors synchronized when feed callbacks update text between render ticks.
+if(typeof MutationObserver!=='undefined'){
+ const sparkStatusObserver=new MutationObserver(updateSparkStatus);
+ for(const id of ['focusEntry','focusAbsorption'])if($(id))sparkStatusObserver.observe($(id),{childList:true,characterData:true,subtree:true});
+}
+
 })();
