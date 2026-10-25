@@ -288,6 +288,6 @@ class CandleFlowEngine:
 
 def push_payload(event):
     side='COMPRA' if event['side']=='buy' else 'VENDA'
-    return dict(title=f"FLOW · {event['model']} · {side}",
+    return dict(title=f"SPARK AI · {event['model']} · {side}",
                 body=f"Gatilho observado {event['price']:g}; invalida {event['invalidation']:g}. Delta alinhado. Experimental.",
                 tag=event['setup_id'],timestamp=event['timestamp'],url='./index.html')

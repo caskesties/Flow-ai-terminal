@@ -32,7 +32,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - name: Validate dashboard JavaScript
-        run: node --check app.js
+        run: |
+          node --check app.js
+          node --check sw.js
+          node scripts/test_spark_ui.js
+          node scripts/test_candle_panel.js
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact

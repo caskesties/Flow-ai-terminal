@@ -67,7 +67,7 @@ def payload_for_signal(event):
     direction="COMPRA" if event["side"]=="buy" else "VENDA"
     price=event["price"]
     strength=min(99,max(1,round(event["directional_share"]*100)))
-    return {"title":f"FLOW · POSSÍVEL {direction} · {event['symbol']}",
+    return {"title":f"SPARK AI · POSSÍVEL {direction} · {event['symbol']}",
         "body":f"Pressão experimental · preço {price:.2f} · força {strength}/100 · {event['ratio']:.1f}×",
         "tag":f"{event['symbol']}-{event['timestamp']}","timestamp":event["timestamp"],"url":"./index.html"}
 
@@ -83,7 +83,7 @@ def payload_for_radar(event):
     stage=event["stage"]
     side="COMPRA" if event["side"]=="buy" else "VENDA"
     message=labels.get(stage,"ALERTA DE FLUXO").format(side=side)
-    return {"title":"FLOW · "+message,
+    return {"title":"SPARK AI · "+message,
             "body":event["symbol"]+" · "+("sinal experimental; avalie o gráfico" if stage!="CONFIRMADO_5M" else "confluência técnica; confira o gráfico"),
             "tag":event["symbol"]+"-"+stage+"-"+str(event["timestamp"]),
             "timestamp":event["timestamp"],"url":"./index.html"}

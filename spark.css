@@ -1,0 +1,35 @@
+/* Spark AI: presentation only. Source values remain bound to the existing engine. */
+[hidden]{display:none!important}
+.compact-header .brand{display:flex;align-items:baseline;gap:9px;white-space:nowrap;font-size:27px!important;line-height:1.2!important}
+.spark-wordmark{font-weight:900;letter-spacing:.015em}.spark-by{font-size:12px;letter-spacing:0;font-weight:750;color:#18334f}
+.spark-status{display:grid;gap:13px;text-align:center;padding:16px 12px!important}
+.spark-status-item{min-width:0}.spark-status h2{font-size:13px;font-weight:750;margin:0 0 7px;color:#18334f}
+.spark-status #focusEntry,.spark-status #focusAbsorption{display:inline-block;max-width:100%;padding:7px 15px;border:1.5px solid currentColor;border-radius:24px;font-size:12px!important;font-weight:750;line-height:1.4;overflow-wrap:anywhere;background:transparent;color:#85929f!important}
+.spark-status [data-tone="buy"],.spark-gauge[data-tone="buy"]{color:#059b6c!important}
+.spark-status [data-tone="sell"],.spark-gauge[data-tone="sell"]{color:#d54562!important}
+.spark-status [data-tone="neutral"]{color:#85929f!important}
+.spark-interest{border:2px solid currentColor;border-radius:50%;width:68px;height:68px;margin:0 auto 5px;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#85929f;gap:2px}
+#sparkInterestArrow{font-size:28px;line-height:1;font-weight:800}#sparkInterestLabel{font-size:10px;line-height:1.15}
+#sparkInterestNote{display:block;font-size:10px!important}
+.spark-gauge{width:136px;height:136px;position:relative;margin:9px auto 3px;color:#85929f}
+.spark-gauge svg{width:100%;height:100%;display:block}.spark-track,.spark-arc{fill:none;stroke-width:7}.spark-track{stroke:#dce5ef}.spark-arc{stroke:currentColor;stroke-linecap:round}
+.spark-gauge-values{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:2px}
+.spark-arrow{font-size:26px;font-weight:850;line-height:1}.spark-percent{font-size:28px;line-height:1.15}.spark-contracts{font-size:10px;color:#617990;line-height:1.3}
+.spark-gauge-caption{text-align:center;color:#617990;font-size:11px;line-height:1.4}
+.focus-pressure .focus-label{font-size:14px;font-weight:750;color:#18334f!important;margin-bottom:0}
+#focusDash .focus-radar .row>b{font-size:15px!important}
+#focusDash .radar-metrics{margin-top:9px!important}
+@media(min-width:600px){.compact-header .brand{font-size:32px!important}.spark-by{font-size:14px}.spark-gauge{width:156px;height:156px}.spark-percent{font-size:32px}.spark-contracts{font-size:11px}}
+@media(prefers-reduced-motion:no-preference){.spark-gauge,.spark-interest{transition:color .2s ease}.spark-status [data-tone]{transition:color .2s ease,border-color .2s ease}}
+.spark-status #focusEntry[data-tone="buy"],.spark-status #focusAbsorption[data-tone="buy"]{color:#059b6c!important}
+.spark-status #focusEntry[data-tone="sell"],.spark-status #focusAbsorption[data-tone="sell"]{color:#d54562!important}
+#focusDash .radar-waves{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#focusDash .radar-waves>div:last-child{display:none!important}
+#focusDash .radar-waves>div{background:transparent!important;border:1px solid #cbdce9}
+#focusDash .radar-waves>div.radar-positive{border-color:#059b6c}
+#focusDash .radar-waves>div.radar-negative{border-color:#d54562}
+#sparkInterestLabel{white-space:nowrap;font-size:9px}
+#focusDash #focusBias[data-tone],#focusDash #focusBias5m[data-tone]{border:1px solid currentColor;background:transparent!important}
+#focusDash #focusBias[data-tone="buy"],#focusDash #focusBias5m[data-tone="buy"]{color:#059b6c!important}
+#focusDash #focusBias[data-tone="sell"],#focusDash #focusBias5m[data-tone="sell"]{color:#d54562!important}
+#focusDash #focusBias[data-tone="neutral"],#focusDash #focusBias5m[data-tone="neutral"]{color:#85929f!important}

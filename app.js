@@ -353,7 +353,7 @@ if(x.type==='server_signal'){if(!history.some(h=>h.serverTimestamp===x.timestamp
 running=true;$('start').disabled=true;$('stop').disabled=false;$('status').textContent=mode==='demo'?'Simulando':mode==='csv'?'Reproduzindo CSV':'Conectando WSS';if(mode==='demo')timer=setInterval(demo,140);else if(mode==='csv')timer=setInterval(()=>{if(cursor>=play.length){stop();$('status').textContent='Replay concluído';return}for(let i=0;i<8&&cursor<play.length;i++){const t=play[cursor++];trades.push(t);price=t.price}render('csv')},140);else timer=setInterval(()=>{if(trades.length&&!marketIsFresh()){$('healthWin').textContent='Feed atrasado';$('healthQuality').textContent='Sinais bloqueados';$('stage').textContent='BLOQUEADO · FEED';$('signal').textContent='SEM ENTRADA';for(const id of ['entry','stopPrice','risk'])$(id).textContent='—';$('status').textContent='Feed atrasado'}},1000)};
 $('clear').onclick=()=>{if(!confirm('Apagar alertas deste navegador?'))return;history=[];try{localStorage.removeItem(KEY)}catch{}renderAlerts()};$('export').onclick=()=>{const rows=[['timestamp','symbol','source','stage','side','price','score','reason','after_5s_price_change','after_30s_price_change'],...history.map(a=>[a.time,a.symbol,a.source,a.stage,a.side,a.price,a.score,a.why,a.after5??'',a.after30??''])],csv=rows.map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\r\n'),url=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv'})),a=document.createElement('a');a.href=url;a.download='flow-ai-v3-alertas.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
 $('testPush').onclick=()=>{const status=$('pushStatus');const token=$('bridgeToken').value.trim(),endpoint=$('endpoint').value.trim();if(token.length<24||!endpoint.startsWith('wss://')){status.textContent='Conecte a ponte e configure o token antes do teste';return}const channel=new WebSocket(endpoint);channel.onopen=()=>channel.send(JSON.stringify({type:'push_test',token}));channel.onmessage=e=>{const x=JSON.parse(e.data);status.textContent=x.success?'Teste enviado ao provedor; confirme se apareceu no iPhone':(x.reason||'Teste indisponível');channel.close()};channel.onerror=()=>{status.textContent='Falha ao solicitar push';channel.close()};status.textContent='Solicitando notificação de teste (não é sinal de entrada)';};
-$('enablePush').onclick=async()=>{const status=$('pushStatus');try{if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window))throw Error('Push não disponível neste navegador; use Adicionar à Tela de Início no iPhone');if(!pushPublicKey)throw Error('Conecte o Flow ao servidor primeiro');const token=$('bridgeToken').value;if(token.length<24)throw Error('Informe o token de acesso ao servidor');const permission=await Notification.requestPermission();if(permission!=='granted')throw Error('Notificações não autorizadas');const reg=await navigator.serviceWorker.register('./sw.js');await navigator.serviceWorker.ready;const binary=Uint8Array.from(atob(pushPublicKey.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-pushPublicKey.length%4)%4)),c=>c.charCodeAt(0));const subscription=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:binary});const endpoint=$('endpoint').value.trim();if(!endpoint.startsWith('wss://'))throw Error('Endpoint WebSocket inválido');const channel=new WebSocket(endpoint);channel.onopen=()=>channel.send(JSON.stringify({type:'push_subscribe',token,subscription:subscription.toJSON()}));channel.onmessage=e=>{const reply=JSON.parse(e.data);status.textContent=reply.success?'Alertas push cadastrados neste iPhone':'Falha no cadastro: '+(reply.reason||'desconhecida');channel.close()};channel.onerror=()=>{status.textContent='Falha na conexão para cadastro push'};status.textContent='Aguardando cadastro do servidor'}catch(e){status.textContent=e.message||'Falha ao ativar alertas'}};
+$('enablePush').onclick=async()=>{const status=$('pushStatus');try{if(!('serviceWorker' in navigator)||!('PushManager' in window)||!('Notification' in window))throw Error('Push não disponível neste navegador; use Adicionar à Tela de Início no iPhone');if(!pushPublicKey)throw Error('Conecte o Spark AI ao servidor primeiro');const token=$('bridgeToken').value;if(token.length<24)throw Error('Informe o token de acesso ao servidor');const permission=await Notification.requestPermission();if(permission!=='granted')throw Error('Notificações não autorizadas');const reg=await navigator.serviceWorker.register('./sw.js');await navigator.serviceWorker.ready;const binary=Uint8Array.from(atob(pushPublicKey.replace(/-/g,'+').replace(/_/g,'/')+'='.repeat((4-pushPublicKey.length%4)%4)),c=>c.charCodeAt(0));const subscription=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:binary});const endpoint=$('endpoint').value.trim();if(!endpoint.startsWith('wss://'))throw Error('Endpoint WebSocket inválido');const channel=new WebSocket(endpoint);channel.onopen=()=>channel.send(JSON.stringify({type:'push_subscribe',token,subscription:subscription.toJSON()}));channel.onmessage=e=>{const reply=JSON.parse(e.data);status.textContent=reply.success?'Alertas push cadastrados neste iPhone':'Falha no cadastro: '+(reply.reason||'desconhecida');channel.close()};channel.onerror=()=>{status.textContent='Falha na conexão para cadastro push'};status.textContent='Aguardando cadastro do servidor'}catch(e){status.textContent=e.message||'Falha ao ativar alertas'}};
 renderAlerts();reset();$('wsWrap').classList.toggle('hidden',$('source').value!=='ws');$('csvWrap').classList.toggle('hidden',$('source').value!=='csv');
 function receiveCandleFlow(event){
  const contract=String(($('contract')?.value||symbol())).toUpperCase();
@@ -377,6 +377,45 @@ function rememberCandleEvent(e,save){
   }
  }
 }
+
+// Symmetric arcs: buy starts at the bottom, sell at the top. Presentation only.
+function sparkArcPath(percent,side){
+ const amount=Math.max(0,Math.min(100,Number(percent)||0));
+ if(amount===0)return '';
+ const center=side==='sell'?-Math.PI/2:Math.PI/2;
+ const half=amount/100*Math.PI;
+ const point=a=>[60+52*Math.cos(a),60+52*Math.sin(a)];
+ const start=point(center-half),end=point(center+half);
+ if(amount===100)return 'M 60 8 A 52 52 0 1 1 60 112 A 52 52 0 1 1 60 8';
+ return `M ${start[0]} ${start[1]} A 52 52 0 ${amount>50?1:0} 1 ${end[0]} ${end[1]}`;
+}
+function updateSparkGauge(id,buy,sell,available){
+ const gauge=$(id);if(!gauge)return;
+ const total=buy+sell,valid=available&&total>0;
+ const side=!valid||buy===sell?'neutral':buy>sell?'buy':'sell';
+ const pct=valid?Math.round(100*Math.max(buy,sell)/total):null;
+ const volume=side==='buy'?buy:side==='sell'?sell:total;
+ const label=!valid?'Aguardando dados':side==='buy'?'Pressão compradora':side==='sell'?'Pressão vendedora':'Pressão equilibrada';
+ gauge.dataset.tone=side;
+ const biasId=id==='sparkRadar2m'?'focusBias':id==='sparkRadar5m'?'focusBias5m':null;
+ if(biasId&&$(biasId))$(biasId).setAttribute('data-tone',side);
+ gauge.querySelector('.spark-arc').setAttribute('d',side==='neutral'?'':sparkArcPath(pct,side));
+ gauge.querySelector('.spark-arrow').textContent=side==='buy'?'↑':side==='sell'?'↓':'—';
+ gauge.querySelector('.spark-percent').textContent=pct===null?'—':pct+'%';
+ gauge.querySelector('.spark-contracts').textContent=valid?fmt(volume)+' contratos':'Sem dados';
+ $(id+'Caption').textContent=label;
+ gauge.setAttribute('aria-label',label+(valid?`, ${pct}%, ${fmt(volume)} contratos`:''));
+}
+function updateSparkStatus(){
+ for(const id of ['focusEntry','focusAbsorption']){
+  const el=$(id);if(!el)continue;
+  const text=el.textContent;
+  const neutral=/aguard|sem |bloquead|invalid|expirad|inconclus|coletando|antigo|já ocorrido/i.test(text);
+  const tone=neutral?'neutral':/compra/i.test(text)?'buy':/venda/i.test(text)?'sell':'neutral';
+  el.setAttribute('data-tone',tone);
+ }
+}
+
 function renderCandleFlow(){
  const box=$('candleFlowBars'),detail=$('candleFlowSetup');if(!box||!detail)return;
  const live=$('source')?.value==='ws';
@@ -411,6 +450,7 @@ function renderCandleFlow(){
   $('focusEntry').style.color=confirmed?(active.side==='buy'?'#078e65':'#ca3854'):'#536c84';
   $('focusAbsorption').textContent=fresh&&events.find(e=>e.model==='ABSORCAO'&&!['INVALIDADO','EXPIRADO'].includes(e.stage)&&Date.now()-e.timestamp<e.timeframe_seconds*3000)?'Absorção em acompanhamento · ver estágio acima':'Sem absorção atual confirmada';
  }
+ updateSparkStatus();
 }
 setInterval(()=>{if($('source')?.value==='ws')renderCandleFlow()},1000);
 const autoStartFlow=()=>{if(running||reconnectTimer||$('source').value!=='ws')return;const token=$('bridgeToken').value.trim();if(token.length<24){$('status').textContent='Conexão automática pronta · informe o token para iniciar';return}reconnectAttempt=0;$('start').click()};
@@ -573,6 +613,15 @@ function updateFocusDashboard(){
  put('radarPriceMove5m',price5m==null?'—':(price5m>0?'+':'')+fmt(price5m,2)+' pt');
  setRadarCardTone('radarPriceMove5m',price5m==null||!Number.isFinite(price5m)?null:price5m>0?'buy':price5m<0?'sell':null);
  put('focusVolume5m',trades5m.length?fmt(volume5m):'—');
+ // Show only current classified volume; stale data never looks like live pressure.
+ const sparkAvailable=running&&($('source').value!=='ws'||marketIsFresh());
+ const minuteClassified=volumeTrades.filter(t=>t.side==='buy'||t.side==='sell');
+ const minuteBuy=minuteClassified.reduce((n,t)=>n+(t.side==='buy'?Number(t.size)||0:0),0);
+ const minuteSell=minuteClassified.reduce((n,t)=>n+(t.side==='sell'?Number(t.size)||0:0),0);
+ updateSparkGauge('sparkPressure',minuteBuy,minuteSell,sparkAvailable);
+ updateSparkGauge('sparkRadar2m',buyVolume,sellVolume,sparkAvailable);
+ updateSparkGauge('sparkRadar5m',buy5m,volume5m-buy5m,sparkAvailable);
+
  const sample5m=trades5m.length>=12&&volume5m>=40;
  put('focusBias5m',!sample5m?'AMOSTRA INSUFICIENTE':share5m>=53?'COMPRADORES':share5m<=47?'VENDEDORES':'EQUILÍBRIO');
  put('radarInterpretation5m',!sample5m?'Coletando fluxo suficiente para análise':share5m>=53?'Contexto de 5 min · predominância compradora · entrada não confirmada':share5m<=47?'Contexto de 5 min · predominância vendedora · entrada não confirmada':'Contexto de 5 min · equilíbrio entre compradores e vendedores');
@@ -604,6 +653,16 @@ function updateFocusDashboard(){
  const znChange=znBaseline?latestZn.value-znBaseline.value:NaN;
  const znDirection=znFresh&&znBaseline&&Math.abs(znChange)>=.015625?(znChange>0?'QUEDA':'ALTA'):null;
  put('focusTreasury2m',!znFresh?'JUROS 2 MIN · DADOS ATRASADOS':!znBaseline?'JUROS 2 MIN · HISTÓRICO INSUFICIENTE':znDirection?'JUROS 2 MIN · '+znDirection:'JUROS 2 MIN · ESTÁVEL / INCONCLUSIVO');
+ const interestAvailable=sparkAvailable&&znFresh&&!!znBaseline;
+ const interestTone=!interestAvailable||!znDirection?'neutral':znDirection==='ALTA'?'buy':'sell';
+ if($('sparkInterest')){
+  $('sparkInterest').dataset.tone=interestTone;
+  $('sparkInterestArrow').textContent=interestTone==='buy'?'↑':interestTone==='sell'?'↓':'—';
+  $('sparkInterestLabel').textContent=!interestAvailable?'SEM DADOS':znDirection==='ALTA'?'ALTA':znDirection==='QUEDA'?'BAIXA':'NEUTRO';
+  $('sparkInterestNote').textContent=!interestAvailable?(!znFresh?'Aguardando dados atualizados':'Histórico insuficiente · 2 min'):'ZN · proxy inverso de juros';
+  $('sparkInterest').setAttribute('aria-label','Direção dos juros: '+$('sparkInterestLabel').textContent);
+ }
+
   put('focusTreasury',treasuryReady?'DIREÇÃO OBSERVADA':'NÃO CONFIRMADO');
  put('focusTreasuryNote',treasuryReady?'ZN: movimento registrado':'ZN: aguardar direção válida');
  const breakoutOK=/CONFIRMADO|ROMPIMENTO/i.test(value('stage'))&&active;
@@ -750,6 +809,7 @@ function updateFocusDashboard(){
  put('focusRisk',value('stopPrice')+' / '+value('target1'));
  if($('source')?.value==='ws')renderCandleFlow();
  const card=$('focusEntry');if(card&&$('source')?.value!=='ws')card.style.color=radarPhase!=='NONE'?(radarSide==='buy'?'#078e65':'#ca3854'):active?(up?'#078e65':'#ca3854'):'#193148';
+ updateSparkStatus();
 }
 let focusRenderPending=false;
 function scheduleFocusRefresh(){
