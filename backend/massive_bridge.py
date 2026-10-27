@@ -2,7 +2,7 @@
 Requires a private TLS reverse proxy and server-side Massive key.
 Never serve this directly to the public internet.
 """
-import asyncio,json,os,time
+import asyncio,json,os,time,hmac
 from push_schedule import event_in_session, within_session
 
 from collections import Counter,defaultdict,deque
@@ -19,7 +19,15 @@ from candle_flow import CandleFlowEngine, push_payload as candle_push_payload
 import push_alerts
 
 MAX_CLIENT_QUEUE=1000
-TRANSPORT_VERSION="spark-feed-20261026"
+TRANSPORT_VERSION="spark-auth-20261026"
+
+def token_matches(provided,expected):
+    # compare_digest(str, str) rejects non-ASCII. Compare exact UTF-8 bytes;
+    # never normalize, truncate, log or change the configured credential.
+    if not isinstance(provided,str):return False
+    try:return hmac.compare_digest(provided.encode("utf-8"),expected.encode("utf-8"))
+    except UnicodeError:return False
+
 async def main():
     api_key=os.environ["MASSIVE_API_KEY"]
     access=os.environ["FLOW_BRIDGE_TOKEN"]
@@ -75,8 +83,7 @@ async def main():
         try:
             raw=await asyncio.wait_for(ws.recv(),timeout=5)
             hello=json.loads(raw)
-            import hmac
-            if not hmac.compare_digest(str(hello.get("token","")),access):
+            if not isinstance(hello,dict) or not token_matches(hello.get("token"),access):
                 print("Flow browser rejected: token mismatch",flush=True)
                 await ws.close(code=1008,reason="Unauthorized");return
             if hello.get("type")=="push_test":

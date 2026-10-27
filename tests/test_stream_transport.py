@@ -41,6 +41,12 @@ class TransportTest(unittest.IsolatedAsyncioTestCase):
                     except OSError: await asyncio.sleep(.01)
                 else: self.fail('bridge did not start')
                 async with ws:
+                    await ws.send(json.dumps({'token':'inválido'*5,'symbol':'MNQZ6'}))
+                    with self.assertRaises(websockets.exceptions.ConnectionClosedError) as rejected:
+                        await ws.recv()
+                    self.assertEqual(rejected.exception.code,1008)
+                ws=await real_connect(f'ws://127.0.0.1:{port}')
+                async with ws:
                     await ws.send(json.dumps({'token': 't'*24, 'symbol': 'MNQZ6'}))
                     self.assertEqual(json.loads(await ws.recv())['transport_version'], bridge.TRANSPORT_VERSION)
                     await events.put({'ev':'status','status':'auth_success'})
@@ -70,6 +76,14 @@ class TransportTest(unittest.IsolatedAsyncioTestCase):
                 task.cancel()
                 try: await task
                 except asyncio.CancelledError: pass
+
+    def test_unicode_tokens_compare_exactly_without_crashing(self):
+        self.assertTrue(bridge.token_matches('válido'*5,'válido'*5))
+        self.assertFalse(bridge.token_matches('inválido'*5,'t'*24))
+        self.assertFalse(bridge.token_matches(None,'t'*24))
+        self.assertFalse(bridge.token_matches({'token':'t'*24},'t'*24))
+        self.assertFalse(bridge.token_matches(' válidó','válidó'))
+        self.assertFalse(bridge.token_matches('\ud800','t'*24))
 
     async def test_slow_close_does_not_block_ingest(self):
         import ast
