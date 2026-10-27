@@ -67,6 +67,25 @@ class RuleTests(unittest.TestCase):
             self.assertEqual(bool(events),expected)
             if expected:self.assertAlmostEqual(events[0]['directional_share'],.575)
 
+    def test_bbo_must_exceed_57_percent_in_candle_and_sample(self):
+        for share,allowed in ((.56,False),(.57,False),(.58,True),(.60,True)):
+            e,key,b,t,_,_=self.setup_engine()
+            b.bbo_volume=b.volume*share
+            self.assertEqual(b.quality,allowed)
+            e.flow=lambda rows:(200,80,1,share)
+            self.assertEqual(bool(e._observe(key,b,t,.25)),allowed)
+
+    def test_bbo_must_exceed_57_percent_at_entry(self):
+        for share,allowed in ((.57,False),(.58,True),(.60,True)):
+            e,key,b,t,_,_=self.setup_engine()
+            e._observe(key,b,t,.25)
+            e.setups[key].update(ready=True,trigger=99.5)
+            recent=[dict(t,timestamp=480000+i*500,price=99.75 if i<7 else 99.5,side='sell',size=5,method='bbo') for i in range(8)]
+            e.recent[key[0]]=deque(recent)
+            b2=Candle(480000,120000,99.75,99.75,99.5,99.5,480000,483500)
+            e.flow=lambda rows:(200,-80,1,share)
+            self.assertEqual(bool(e._advance(key,b2,recent[-1],.25)),allowed)
+
     def test_price_must_stall(self):
         e,key,b,t,_,_=self.setup_engine()
         e.recent[key[0]][-1]['price']=102;t['price']=102

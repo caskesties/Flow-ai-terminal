@@ -55,7 +55,7 @@ Painel principal: FIBO e região próxima ou prioritária de 50–61,8%. A refer
 `backend/candle_flow.py` é a fonte dos novos alertas de entrada. Forma OHLC e
 volume com todos os negócios recebidos, em intervalos fixos de 120/300 segundos
 pelo timestamp do fornecedor. Delta usa apenas agressão classificada; exige ao
-menos 80% de cobertura classificada e 70% do volume classificado por BBO para
+menos 80% de cobertura classificada e mais de 57% do volume total por BBO para
 confirmar. A classificação continua estimada, não identifica instituições.
 
 - **Absorção com reação:** atividade 1,3x a referência recente e dominância >=57%
@@ -101,7 +101,7 @@ real de push exigem confirmação separada no Northflank/iPhone. Não executa or
 
 O classificador mantém até dois segundos de cotações por contrato (máximo 10.000), buscando a cotação mais recente com timestamp menor ou igual ao negócio. Uma cotação posterior não apaga a referência causal anterior; cotações vencidas não são usadas. Agressão continua estimada.
 
-Nos modelos de candles, a participação direcional deve ser **maior que 57% do volume classificado**, tanto para observar absorção quanto para confirmar rompimento e gatilho. Volume sem classificação não recebe lado artificial. Permanecem cobertura mínima de 80% do volume classificado e 70% por BBO, contexto de três candles completos, filtro de atividade 1,3×, absorção junto ao extremo com preço limitado e reação antes da entrada. O limiar não representa taxa de acerto.
+Nos modelos de candles, a participação direcional deve ser **maior que 57% do volume classificado**, tanto para observar absorção quanto para confirmar rompimento e gatilho. Volume sem classificação não recebe lado artificial. Permanecem cobertura classificada mínima de 80% do volume total e cobertura por BBO acima de 57% do volume total, contexto de três candles completos, filtro de atividade 1,3×, absorção junto ao extremo com preço limitado e reação antes da entrada. O limiar não representa taxa de acerto.
 
 Snapshots expõem o motivo que bloqueia a formação (aquecimento, lacunas, classificação, volume, predominância, atividade, deslocamento ou distância do nível). O painel diferencia classificação insuficiente de aquecimento. Testes sintéticos incluem cotações intercaladas com negócios, bloqueio de cotações futuras/vencidas, simetria de compra/venda e o limite de 57%. Não são validação de rentabilidade.
 

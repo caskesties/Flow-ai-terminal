@@ -9,6 +9,8 @@ from math import isfinite
 from statistics import median
 import time
 
+MIN_BBO_COVERAGE = .57
+
 
 @dataclass
 class Candle:
@@ -49,7 +51,7 @@ class Candle:
     @property
     def quality(self):
         return (self.volume > 0 and (self.buy + self.sell) / self.volume >= .80
-                and self.bbo_volume / self.volume >= .70)
+                and self.bbo_volume / self.volume > MIN_BBO_COVERAGE)
 
     def snapshot(self):
         return dict(asdict(self), delta=self.buy-self.sell,
@@ -62,7 +64,7 @@ class Candle:
 
 
 class CandleFlowEngine:
-    VERSION = 'candles-20261026-v2'
+    VERSION = 'candles-20261026-v3'
     MIN_AGGRESSOR_SHARE = .57
 
     def __init__(self, clock=None):
@@ -103,7 +105,8 @@ class CandleFlowEngine:
         volume, delta, coverage, bbo = self.flow(recent)
         event.update(delta_5s=delta, classified_fraction=coverage, bbo_fraction=bbo,
                      directional_share=(1+abs(delta)/(volume*coverage))/2 if volume and coverage else 0,
-                     minimum_aggressor_share=self.MIN_AGGRESSOR_SHARE)
+                     minimum_aggressor_share=self.MIN_AGGRESSOR_SHARE,
+                     minimum_bbo_coverage=MIN_BBO_COVERAGE)
         self.latest[key] = event
         return event
 
@@ -191,7 +194,7 @@ class CandleFlowEngine:
         if len(baseline)<10 or baseline[-1]['timestamp']-baseline[0]['timestamp']<20000: return self._blocked(key,'BASELINE_TOO_SHORT')
         volume,delta,coverage,bbo = self.flow(sample)
         if volume<40: return self._blocked(key,'LOW_VOLUME')
-        if coverage<.8 or bbo<.7: return self._blocked(key,'SAMPLE_CLASSIFICATION')
+        if coverage<.8 or bbo<=MIN_BBO_COVERAGE: return self._blocked(key,'SAMPLE_CLASSIFICATION')
         if (1+abs(delta)/(volume*coverage))/2<=self.MIN_AGGRESSOR_SHARE: return self._blocked(key,'LOW_DOMINANCE')
         # Actual total activity, independent of delta share. Provisional 1.3x.
         if volume/15 < sum(x['size'] for x in baseline)/30*1.3: return self._blocked(key,'LOW_ACTIVITY')
@@ -284,7 +287,7 @@ class CandleFlowEngine:
         if sign*(previous-s['trigger'])>=0 or sign*(px-s['trigger'])>2*tick: return []
         recent = [x for x in self.recent[key[0]] if x['timestamp']>=ts-5000]
         volume,delta,coverage,bbo = self.flow(recent)
-        if len(recent)<5 or volume<20 or coverage<.8 or bbo<.7: return []
+        if len(recent)<5 or volume<20 or coverage<.8 or bbo<=MIN_BBO_COVERAGE: return []
         if (1+sign*delta/(volume*coverage))/2<=self.MIN_AGGRESSOR_SHARE or sign*(px-recent[0]['price'])<=0: return []
         if max((recent[i]['timestamp']-recent[i-1]['timestamp'] for i in range(1,len(recent))),default=0)>3000: return []
         event=self._event(key,s,'GATILHO_CONFIRMADO',t,'Preço rompeu a reação com delta recente na mesma direção; sinal experimental, sem execução.')
@@ -295,6 +298,7 @@ class CandleFlowEngine:
     def snapshot(self,symbol):
         return dict(type='candle_state',version=self.VERSION,symbol=symbol,
                     timestamp=self.last_ts.get(symbol,0),
+                    minimum_bbo_coverage=MIN_BBO_COVERAGE,
                     candles=[dict(b.snapshot(),timeframe_seconds=k[1]//1000,
                                   warming_up=len(self.closed[k])<3,
                                   context_ready=self._context(k) is not None,
