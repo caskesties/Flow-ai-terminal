@@ -19,6 +19,7 @@ from candle_flow import CandleFlowEngine, push_payload as candle_push_payload
 import push_alerts
 
 MAX_CLIENT_QUEUE=1000
+TRANSPORT_VERSION="spark-feed-20261026"
 async def main():
     api_key=os.environ["MASSIVE_API_KEY"]
     access=os.environ["FLOW_BRIDGE_TOKEN"]
@@ -43,15 +44,32 @@ async def main():
     latest_treasury=None
     treasury_replay=deque(maxlen=12000)
     feed_health={"last_market_event_ms":0,"last_classified_ms":0,"provider_connected":False}
+    contract_health=defaultdict(lambda:{"quote_ms":0,"trade_ms":0,"classified_ms":0,"received_ms":0,"lag_ms":None})
+    close_tasks=set()
+    def disconnect_slow(client, sym, queue):
+        # Never wait for a frozen phone's close handshake inside provider ingest.
+        clients.discard((client,sym,queue))
+        task=asyncio.create_task(client.close(code=1013,reason="Slow client, reconnect"))
+        close_tasks.add(task)
+        task.add_done_callback(close_tasks.discard)
     async def health_loop():
         while True:
             await asyncio.sleep(1)
             now=int(time.time()*1000)
-            age=now-feed_health["last_market_event_ms"] if feed_health["last_market_event_ms"] else None
-            status="LIVE" if feed_health["provider_connected"] and age is not None and -5000<=age<=3000 else "STALE"
-            event={"type":"feed_health","status":status,"provider_connected":feed_health["provider_connected"],"last_market_event_ms":feed_health["last_market_event_ms"],"last_classified_ms":feed_health["last_classified_ms"],"age_ms":age,"server_timestamp":now}
-            for _,_,q in tuple(clients):
-                if not q.full():q.put_nowait(event)
+            for client,contract,q in tuple(clients):
+                metrics=contract_health[contract]
+                event_ms=max(metrics["quote_ms"],metrics["trade_ms"])
+                age=now-event_ms if event_ms else None
+                status="LIVE" if feed_health["provider_connected"] and age is not None and -5000<=age<=3000 else "STALE"
+                event={"type":"feed_health","status":status,"contract":contract,
+                    "transport_version":TRANSPORT_VERSION,
+                    "provider_connected":feed_health["provider_connected"],
+                    "last_market_event_ms":event_ms,"last_trade_ms":metrics["trade_ms"],
+                    "last_classified_ms":metrics["classified_ms"],"age_ms":age,
+                    "provider_lag_ms":metrics["lag_ms"],"queue_depth":q.qsize(),
+                    "server_timestamp":now}
+                if q.full():disconnect_slow(client,contract,q)
+                else:q.put_nowait(event)
     async def browser(ws):
         # Token is sent in initial auth message, not in URL/query logs.
         try:
@@ -86,7 +104,7 @@ async def main():
                 await ws.close(code=1008,reason="Unknown contract");return
             queue=asyncio.Queue(maxsize=MAX_CLIENT_QUEUE)
             print("Flow browser authenticated for %s" % requested,flush=True)
-            await ws.send(json.dumps({"type":"ready","contract":requested,"classification":"estimated","server_analysis":"experimental","push_public_key":push_alerts.PUBLIC_KEY}))
+            await ws.send(json.dumps({"type":"ready","transport_version":TRANSPORT_VERSION,"contract":requested,"classification":"estimated","server_analysis":"experimental","push_public_key":push_alerts.PUBLIC_KEY}))
             now_ms=int(time.time()*1000)
             snapshot=[row for row in replay[requested] if 0<=now_ms-row["timestamp"]<=330000]
             print("Flow replay for %s: %d classified prints" % (requested,len(snapshot)),flush=True)
@@ -102,11 +120,22 @@ async def main():
                 if event_in_session(alert["timestamp"]):
                     await ws.send(json.dumps(alert))
             clients.add((ws,requested,queue))
-            try:
+            async def send_events():
                 while True:
                     event=await queue.get()
-                    await ws.send(json.dumps(event))
-            finally:clients.discard((ws,requested,queue))
+                    batch=[event]
+                    while len(batch)<100 and not queue.empty():
+                        batch.append(queue.get_nowait())
+                    await ws.send(json.dumps(batch if len(batch)>1 else event))
+            sender=asyncio.create_task(send_events())
+            closed=asyncio.create_task(ws.wait_closed())
+            try:
+                done,_=await asyncio.wait((sender,closed),return_when=asyncio.FIRST_COMPLETED)
+                for task in done:task.result()
+            finally:
+                clients.discard((ws,requested,queue))
+                sender.cancel();closed.cancel()
+                await asyncio.gather(sender,closed,return_exceptions=True)
         except (asyncio.TimeoutError,ValueError,KeyError):await ws.close(code=1008,reason="Invalid authorization")
         except websockets.exceptions.ConnectionClosed:
             print("Flow browser disconnected",flush=True)
@@ -147,6 +176,12 @@ async def main():
                                 try:
                                     event_ms=int((max(msg.get("bt",0),msg.get("at",0)) if msg.get("ev")=="Q" else 0) or msg["t"])
                                     feed_health["last_market_event_ms"]=event_ms
+                                    metrics=contract_health[str(msg.get("sym",""))]
+                                    field="quote_ms" if msg.get("ev")=="Q" else "trade_ms"
+                                    if event_ms>=metrics[field]:
+                                        metrics[field]=event_ms
+                                        metrics["received_ms"]=int(time.time()*1000)
+                                        metrics["lag_ms"]=metrics["received_ms"]-event_ms
                                 except (KeyError,TypeError,ValueError):pass
                                 counts[msg["ev"]]+=1
                                 counts[msg["ev"]+"."+str(msg.get("sym","unknown"))]+=1
@@ -205,6 +240,7 @@ async def main():
                             if item:
                                 replay[item["symbol"]].append(dict(item))
                                 feed_health["last_classified_ms"]=item["timestamp"]
+                                contract_health[item["symbol"]]["classified_ms"]=item["timestamp"]
                                 # Radar direction remains context; candles own entry pushes.
                                 radar_push_engine.on_trade(item)
                                 post_events=post_monitor.on_trade(item)
@@ -258,6 +294,8 @@ async def main():
                                 counts["classified."+item["symbol"]]+=1
                             if time.monotonic()-last_report>=30:
                                 print("Provider 30s diagnostics: trades=%d quotes=%d classified=%d clients=%d samples=%s" %(counts["T"],counts["Q"],counts["classified"],len(clients),str(getattr(classifier,"recent",{}).get(symbols[0],[]) and list(classifier.recent[symbols[0]])[-1].get("timestamp","none"))),flush=True)
+                                now_ms=int(time.time()*1000)
+                                print("Transport 30s: "+json.dumps({sym:{"market_age_ms":now_ms-max(v["quote_ms"],v["trade_ms"]),"provider_lag_ms":v["lag_ms"],"trade_age_ms":now_ms-v["trade_ms"] if v["trade_ms"] else None} for sym,v in contract_health.items()}),flush=True)
                                 print("Per-contract 30s: "+", ".join("%s=%d"%(k,v) for k,v in sorted(counts.items()) if "." in k),flush=True)
                                 counts.clear()
                                 last_report=time.monotonic()
@@ -269,8 +307,7 @@ async def main():
                                         outgoing["symbol"]=next((p for p in ("MNQ","MGC","NQ","GC","ZN") if item["symbol"].startswith(p)),item["symbol"])
                                         outgoing["reference"]=item["symbol"]!=sym
                                         if queue.full():
-                                            await client.close(code=1013,reason="Slow client, reconnect")
-                                            clients.discard((client,sym,queue))
+                                            disconnect_slow(client,sym,queue)
                                         else:queue.put_nowait(outgoing)
                     retry=15
             except (OSError,websockets.exceptions.WebSocketException,RuntimeError,ValueError) as exc:
@@ -289,3 +326,4 @@ async def main():
         try:await provider()
         finally:watchdog.cancel()
 if __name__=="__main__":asyncio.run(main())
+
