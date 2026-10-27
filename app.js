@@ -433,13 +433,16 @@ function renderCandleFlow(){
   title.textContent=b.timeframe_seconds/60+' min · delta '+fmt(b.delta)+' · '+(b.warming_up?'coletando contexto':'em formação');title.className=b.delta>0?'up':b.delta<0?'down':'neutral';
   values.textContent='A '+fmt(b.open,2)+'  Máx '+fmt(b.high,2)+'  Mín '+fmt(b.low,2)+'  Atual '+fmt(b.close,2);
   quality.textContent='Volume '+fmt(b.volume)+' · classificado '+Math.round(b.classified_fraction*100)+'% · BBO '+Math.round(b.bbo_fraction*100)+'%';
+  const blockers={WARMUP:'Coletando 3 candles completos',CONTEXT_GAPS:'Contexto com lacunas nos negócios',CONTEXT_CLASSIFICATION:'Contexto abaixo de 80% classificados / 70% BBO',CURRENT_GAPS:'Candle atual com lacunas',SAMPLE_TOO_SHORT:'Amostra de absorção curta',BASELINE_TOO_SHORT:'Coletando referência de volume',LOW_VOLUME:'Volume menor que 40',SAMPLE_CLASSIFICATION:'Amostra abaixo de 80% classificados / 70% BBO',LOW_DOMINANCE:'Agressão precisa superar 57%',LOW_ACTIVITY:'Atividade abaixo de 1,3× a referência',PRICE_NOT_STALLED:'Preço ainda deslocando; sem absorção',AWAY_FROM_LEVEL:'Fora do extremo dos 3 candles',NO_ABSORPTION_PATTERN:'Aguardando padrão de absorção'};
+  const blocker=blockers[b.formation_blocker];
+  if(blocker)quality.textContent+=' · '+blocker;
   values.style.display='block';quality.style.display='block';text.append(title,values,quality);row.append(svg,text);box.append(row);
  }
  if(!candleFlowState?.candles?.length)box.textContent=live?'Aguardando candles do servidor atualizado.':'Leitura de candles disponível com servidor ao vivo.';
  const events=candleFlowEvents.slice().sort((a,b)=>b.timestamp-a.timestamp);
  const active=events.find(e=>!['INVALIDADO','EXPIRADO'].includes(e.stage)&&Date.now()-e.timestamp<e.timeframe_seconds*3000);
  const latest=active||events[0];
- let message=!fresh?'Sem leitura atualizada · gatilhos bloqueados':latest?(labels[latest.stage]||latest.stage)+' · '+(latest.side==='buy'?'COMPRA':'VENDA')+' · '+latest.timeframe_seconds/60+' min':'Coletando contexto · sem padrão confirmado';
+ let message=!fresh?'Sem leitura atualizada · gatilhos bloqueados':latest?(labels[latest.stage]||latest.stage)+' · '+(latest.side==='buy'?'COMPRA':'VENDA')+' · '+latest.timeframe_seconds/60+' min':(candleFlowState?.candles?.some(b=>b.formation_blocker==='CONTEXT_CLASSIFICATION'||b.formation_blocker==='SAMPLE_CLASSIFICATION')?'Classificação insuficiente · entradas bloqueadas':candleFlowState?.candles?.some(b=>b.warming_up)?'Coletando 3 candles · aguardar contexto':'Sem padrão de entrada confirmado');
  if(fresh&&latest?.stage==='GATILHO_CONFIRMADO'&&Date.now()-latest.timestamp>10000)message='Gatilho já ocorrido · acompanhar invalidação';
  if(fresh&&latest&&Date.now()-latest.timestamp>=latest.timeframe_seconds*3000)message='Padrão antigo · aguardar nova formação';
  detail.textContent=message;

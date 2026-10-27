@@ -62,7 +62,8 @@ class Candle:
 
 
 class CandleFlowEngine:
-    VERSION = 'candles-20261023-v1'
+    VERSION = 'candles-20261026-v2'
+    MIN_AGGRESSOR_SHARE = .57
 
     def __init__(self, clock=None):
         self.clock = clock or (lambda: int(time.time()*1000))
@@ -75,6 +76,7 @@ class CandleFlowEngine:
         self.latest = {}
         self.evaluated = {}
         self.stats = defaultdict(int)
+        self.blockers = {}
 
     @staticmethod
     def tick(symbol):
@@ -100,7 +102,8 @@ class CandleFlowEngine:
         recent = [x for x in self.recent[key[0]] if x['timestamp'] >= t['timestamp']-5000]
         volume, delta, coverage, bbo = self.flow(recent)
         event.update(delta_5s=delta, classified_fraction=coverage, bbo_fraction=bbo,
-                     directional_share=(1+abs(delta)/volume)/2 if volume else 0)
+                     directional_share=(1+abs(delta)/(volume*coverage))/2 if volume and coverage else 0,
+                     minimum_aggressor_share=self.MIN_AGGRESSOR_SHARE)
         self.latest[key] = event
         return event
 
@@ -168,31 +171,43 @@ class CandleFlowEngine:
             self.setups.pop(key,None); self.latest.pop(key,None)
         self.recent.pop(sym,None)
 
+    def _blocked(self,key,reason):
+        self.blockers[key]=reason
+        return []
+
     def _observe(self,key,b,t,tick):
         if key in self.setups: return []
+        self.blockers[key] = 'NO_ABSORPTION_PATTERN'
         prior = self._context(key)
-        if not prior or b.first-b.start>2000 or b.max_gap>3000: return []
+        if not prior:
+            bars=list(self.closed[key])[-3:]
+            reason='WARMUP' if len(bars)<3 else 'CONTEXT_GAPS' if any(not x.complete for x in bars) else 'CONTEXT_CLASSIFICATION'
+            return self._blocked(key,reason)
+        if b.first-b.start>2000 or b.max_gap>3000: return self._blocked(key,'CURRENT_GAPS')
         ts = t['timestamp']; rows = list(self.recent[key[0]])
         sample = [x for x in rows if x['timestamp'] >= ts-15000]
         baseline = [x for x in rows if ts-45000<=x['timestamp']<ts-15000]
-        if len(sample)<10 or sample[-1]['timestamp']-sample[0]['timestamp']<10000: return []
-        if len(baseline)<10 or baseline[-1]['timestamp']-baseline[0]['timestamp']<20000: return []
+        if len(sample)<10 or sample[-1]['timestamp']-sample[0]['timestamp']<10000: return self._blocked(key,'SAMPLE_TOO_SHORT')
+        if len(baseline)<10 or baseline[-1]['timestamp']-baseline[0]['timestamp']<20000: return self._blocked(key,'BASELINE_TOO_SHORT')
         volume,delta,coverage,bbo = self.flow(sample)
-        if volume<40 or coverage<.8 or bbo<.7 or abs(delta)/volume<.14: return []
+        if volume<40: return self._blocked(key,'LOW_VOLUME')
+        if coverage<.8 or bbo<.7: return self._blocked(key,'SAMPLE_CLASSIFICATION')
+        if (1+abs(delta)/(volume*coverage))/2<=self.MIN_AGGRESSOR_SHARE: return self._blocked(key,'LOW_DOMINANCE')
         # Actual total activity, independent of delta share. Provisional 1.3x.
-        if volume/15 < sum(x['size'] for x in baseline)/30*1.3: return []
+        if volume/15 < sum(x['size'] for x in baseline)/30*1.3: return self._blocked(key,'LOW_ACTIVITY')
         side = 'buy' if delta<0 else 'sell'
         sign = 1 if side=='buy' else -1
         level = min(x.low for x in prior) if side=='buy' else max(x.high for x in prior)
         span = max(x['price'] for x in sample)-min(x['price'] for x in sample)
         # Adaptive but capped amplitude; first-to-last stall alone is insufficient.
         cap = max(3*tick,min(12*tick,median(x.high-x.low for x in prior)*.10))
-        if span>cap+1e-8 or abs(sample[-1]['price']-sample[0]['price'])>3*tick+1e-8: return []
-        if abs(t['price']-level)>3*tick+1e-8: return []
+        if span>cap+1e-8 or abs(sample[-1]['price']-sample[0]['price'])>3*tick+1e-8: return self._blocked(key,'PRICE_NOT_STALLED')
+        if abs(t['price']-level)>3*tick+1e-8: return self._blocked(key,'AWAY_FROM_LEVEL')
         setup = dict(id=f'{key[0]}:{key[1]}:{ts}:ABS',model='ABSORCAO',side=side,
                      level=level,trigger=b.high+tick if sign==1 else b.low-tick,
                      invalidation=min(b.low,level)-tick if sign==1 else max(b.high,level)+tick,
                      born=ts,bar_start=b.start,ready=False,expires=b.start+3*key[1])
+        self.blockers[key] = None
         self.setups[key] = setup
         return [self._event(key,setup,'EM_FORMACAO',t,'Agressão contrária com amplitude limitada junto ao nível; aguardar fechamento e reação.')]
 
@@ -233,7 +248,7 @@ class CandleFlowEngine:
         side = 'buy' if b.close>b.open else 'sell'
         sign = 1 if side=='buy' else -1
         delta = b.buy-b.sell
-        if sign*delta<=0 or (b.buy if sign==1 else b.sell)/classified<.57: return events
+        if sign*delta<=0 or (b.buy if sign==1 else b.sell)/classified<=self.MIN_AGGRESSOR_SHARE: return events
         if b.volume < median(x.volume for x in prior)*1.3: return events
         level = max(x.high for x in prior) if sign==1 else min(x.low for x in prior)
         if sign*(b.close-level)<tick-1e-8: return events
@@ -270,7 +285,7 @@ class CandleFlowEngine:
         recent = [x for x in self.recent[key[0]] if x['timestamp']>=ts-5000]
         volume,delta,coverage,bbo = self.flow(recent)
         if len(recent)<5 or volume<20 or coverage<.8 or bbo<.7: return []
-        if sign*delta/volume<.14 or sign*(px-recent[0]['price'])<=0: return []
+        if (1+sign*delta/(volume*coverage))/2<=self.MIN_AGGRESSOR_SHARE or sign*(px-recent[0]['price'])<=0: return []
         if max((recent[i]['timestamp']-recent[i-1]['timestamp'] for i in range(1,len(recent))),default=0)>3000: return []
         event=self._event(key,s,'GATILHO_CONFIRMADO',t,'Preço rompeu a reação com delta recente na mesma direção; sinal experimental, sem execução.')
         event['candle']=b.snapshot()
@@ -281,7 +296,12 @@ class CandleFlowEngine:
         return dict(type='candle_state',version=self.VERSION,symbol=symbol,
                     timestamp=self.last_ts.get(symbol,0),
                     candles=[dict(b.snapshot(),timeframe_seconds=k[1]//1000,
-                                  warming_up=self._context(k) is None)
+                                  warming_up=len(self.closed[k])<3,
+                                  context_ready=self._context(k) is not None,
+                                  context_bars=len(list(self.closed[k])[-3:]),
+                                  context_complete=sum(x.complete for x in list(self.closed[k])[-3:]),
+                                  context_quality=sum(x.quality for x in list(self.closed[k])[-3:]),
+                                  formation_blocker=self.blockers.get(k,'WARMUP'))
                              for k,b in self.current.items() if k[0]==symbol],
                     setups=[e for k,e in self.latest.items() if k[0]==symbol])
 
@@ -291,3 +311,4 @@ def push_payload(event):
     return dict(title=f"SPARK AI · {event['model']} · {side}",
                 body=f"Gatilho observado {event['price']:g}; invalida {event['invalidation']:g}. Delta alinhado. Experimental.",
                 tag=event['setup_id'],timestamp=event['timestamp'],url='./index.html')
+
