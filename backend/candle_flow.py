@@ -64,8 +64,8 @@ class Candle:
 
 
 class CandleFlowEngine:
-    VERSION = 'candles-20261026-v3'
-    MIN_AGGRESSOR_SHARE = .57
+    VERSION = 'candles-20261028-v4'
+    MIN_AGGRESSOR_SHARE = .54
 
     def __init__(self, clock=None):
         self.clock = clock or (lambda: int(time.time()*1000))
@@ -180,6 +180,10 @@ class CandleFlowEngine:
 
     def _observe(self,key,b,t,tick):
         if key in self.setups: return []
+        # The 2m candle is evaluated while forming; 5m remains independent context.
+        if key[1] == 120000:
+            live_events=self._observe_live(key,b,t,tick)
+            if live_events or not self._context(key): return live_events
         self.blockers[key] = 'NO_ABSORPTION_PATTERN'
         prior = self._context(key)
         if not prior:
@@ -195,7 +199,7 @@ class CandleFlowEngine:
         volume,delta,coverage,bbo = self.flow(sample)
         if volume<40: return self._blocked(key,'LOW_VOLUME')
         if coverage<.8 or bbo<=MIN_BBO_COVERAGE: return self._blocked(key,'SAMPLE_CLASSIFICATION')
-        if (1+abs(delta)/(volume*coverage))/2<=self.MIN_AGGRESSOR_SHARE: return self._blocked(key,'LOW_DOMINANCE')
+        if (1+abs(delta)/(volume*coverage))/2<self.MIN_AGGRESSOR_SHARE: return self._blocked(key,'LOW_DOMINANCE')
         # Actual total activity, independent of delta share. Provisional 1.3x.
         if volume/15 < sum(x['size'] for x in baseline)/30*1.3: return self._blocked(key,'LOW_ACTIVITY')
         side = 'buy' if delta<0 else 'sell'
@@ -213,6 +217,37 @@ class CandleFlowEngine:
         self.blockers[key] = None
         self.setups[key] = setup
         return [self._event(key,setup,'EM_FORMACAO',t,'Agressão contrária com amplitude limitada junto ao nível; aguardar fechamento e reação.')]
+
+    def _observe_live(self,key,b,t,tick):
+        rows=[x for x in self.recent[key[0]] if x['timestamp']>=b.start]
+        ts=t['timestamp']
+        prior=[x for x in rows if ts-15000<=x['timestamp']<ts-5000]
+        recent=[x for x in rows if x['timestamp']>=ts-5000]
+        if b.max_gap>3000: return self._blocked(key,'CURRENT_GAPS')
+        if len(prior)<5 or len(recent)<5 or prior[-1]['timestamp']-prior[0]['timestamp']<5000:
+            return self._blocked(key,'SAMPLE_TOO_SHORT')
+        volume,delta,coverage,bbo=self.flow(prior)
+        if volume<20: return self._blocked(key,'LOW_VOLUME')
+        if coverage<.8 or bbo<=MIN_BBO_COVERAGE: return self._blocked(key,'SAMPLE_CLASSIFICATION')
+        if (1+abs(delta)/(volume*coverage))/2<self.MIN_AGGRESSOR_SHARE:
+            return self._blocked(key,'LOW_DOMINANCE')
+        sign=-1 if delta>0 else 1
+        span=b.high-b.low
+        wick=b.high-max(b.open,b.close) if sign<0 else min(b.open,b.close)-b.low
+        displacement=(b.high-b.open) if sign<0 else (b.open-b.low)
+        move=prior[-1]['price']-prior[0]['price']
+        if span<=0 or displacement<3*tick or wick<max(2*tick,span*.25) or sign*move>=0:
+            return self._blocked(key,'NO_REJECTION')
+        side='buy' if sign>0 else 'sell'
+        setup=dict(id=f'{key[0]}:{key[1]}:{ts}:LIVE',model='ABSORCAO',side=side,
+                   level=b.low if sign>0 else b.high,
+                   trigger=max(x['price'] for x in recent)+tick if sign>0 else min(x['price'] for x in recent)-tick,
+                   invalidation=b.low-tick if sign>0 else b.high+tick,
+                   born=ts,bar_start=b.start,ready=False,live=True,
+                   expires=min(ts+30000,b.start+key[1]),last_price=t['price'])
+        self.setups[key]=setup
+        self.blockers[key]=None
+        return [self._event(key,setup,'EM_FORMACAO',t,'Deslocamento com agressão ≥54% e pavio de rejeição no candle em formação; aguardar virada do fluxo recente.')]
 
     def _close(self,key,b,t,tick):
         events = []; setup = self.setups.get(key)
@@ -251,7 +286,7 @@ class CandleFlowEngine:
         side = 'buy' if b.close>b.open else 'sell'
         sign = 1 if side=='buy' else -1
         delta = b.buy-b.sell
-        if sign*delta<=0 or (b.buy if sign==1 else b.sell)/classified<=self.MIN_AGGRESSOR_SHARE: return events
+        if sign*delta<=0 or (b.buy if sign==1 else b.sell)/classified<self.MIN_AGGRESSOR_SHARE: return events
         if b.volume < median(x.volume for x in prior)*1.3: return events
         level = max(x.high for x in prior) if sign==1 else min(x.low for x in prior)
         if sign*(b.close-level)<tick-1e-8: return events
@@ -274,6 +309,16 @@ class CandleFlowEngine:
             self.setups.pop(key,None)
             return [self._event(key,s,'EXPIRADO' if ts>=s['expires'] else 'INVALIDADO',t,reason)]
         if s.get('triggered'): return []
+        if s.get('live') and not s['ready']:
+            recent=[x for x in self.recent[key[0]] if x['timestamp']>=ts-5000]
+            volume,delta,coverage,bbo=self.flow(recent)
+            if (len(recent)>=5 and volume>=20 and coverage>=.8 and bbo>MIN_BBO_COVERAGE
+                and (1+sign*delta/(volume*coverage))/2>=self.MIN_AGGRESSOR_SHARE
+                and sign*(px-recent[0]['price'])>0):
+                s.update(ready=True,last_price=px,
+                         trigger=max(x['price'] for x in recent)+tick if sign>0 else min(x['price'] for x in recent)-tick)
+                return [self._event(key,s,'FLUXO_VIROU',t,'Pavio de rejeição e agressão recente ≥54% no lado oposto; aguardar rompimento da reação.')]
+            return []
         if s['model']=='ROMPIMENTO_RETESTE' and not s['ready'] and 'retest_start' not in s:
             if ts>s['born'] and abs(px-s['level'])<=2*tick+1e-8:
                 s['retest_start']=b.start
@@ -288,7 +333,7 @@ class CandleFlowEngine:
         recent = [x for x in self.recent[key[0]] if x['timestamp']>=ts-5000]
         volume,delta,coverage,bbo = self.flow(recent)
         if len(recent)<5 or volume<20 or coverage<.8 or bbo<=MIN_BBO_COVERAGE: return []
-        if (1+sign*delta/(volume*coverage))/2<=self.MIN_AGGRESSOR_SHARE or sign*(px-recent[0]['price'])<=0: return []
+        if (1+sign*delta/(volume*coverage))/2<self.MIN_AGGRESSOR_SHARE or sign*(px-recent[0]['price'])<=0: return []
         if max((recent[i]['timestamp']-recent[i-1]['timestamp'] for i in range(1,len(recent))),default=0)>3000: return []
         event=self._event(key,s,'GATILHO_CONFIRMADO',t,'Preço rompeu a reação com delta recente na mesma direção; sinal experimental, sem execução.')
         event['candle']=b.snapshot()
@@ -300,7 +345,7 @@ class CandleFlowEngine:
                     timestamp=self.last_ts.get(symbol,0),
                     minimum_bbo_coverage=MIN_BBO_COVERAGE,
                     candles=[dict(b.snapshot(),timeframe_seconds=k[1]//1000,
-                                  warming_up=len(self.closed[k])<3,
+                                  warming_up=(b.count<10 if k[1]==120000 else len(self.closed[k])<3),
                                   context_ready=self._context(k) is not None,
                                   context_bars=len(list(self.closed[k])[-3:]),
                                   context_complete=sum(x.complete for x in list(self.closed[k])[-3:]),
@@ -315,4 +360,5 @@ def push_payload(event):
     return dict(title=f"SPARK AI · {event['model']} · {side}",
                 body=f"Gatilho observado {event['price']:g}; invalida {event['invalidation']:g}. Delta alinhado. Experimental.",
                 tag=event['setup_id'],timestamp=event['timestamp'],url='./index.html')
+
 

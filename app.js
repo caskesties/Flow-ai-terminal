@@ -421,7 +421,7 @@ function renderCandleFlow(){
  const box=$('candleFlowBars'),detail=$('candleFlowSetup');if(!box||!detail)return;
  const live=$('source')?.value==='ws';
  const fresh=live&&running&&ws?.readyState===WebSocket.OPEN&&candleFlowState&&Date.now()-candleFlowState.timestamp<=3000&&Date.now()-candleFlowState.timestamp>=-1000;
- const labels={EM_FORMACAO:'Possível absorção · aguardar',REJEICAO_CONFIRMADA:'Rejeição fechada · aguardar gatilho',AGUARDAR_RETESTE:'Rompimento · aguardar reteste',RETESTE_EM_FORMACAO:'Reteste em formação',RETESTE_CONFIRMADO:'Reteste sustentado · aguardar gatilho',GATILHO_CONFIRMADO:'Gatilho confirmado · experimental',INVALIDADO:'Padrão invalidado',EXPIRADO:'Padrão expirado'};
+ const labels={EM_FORMACAO:'Possível absorção · candle em formação',FLUXO_VIROU:'Virada de fluxo · aguardar gatilho',REJEICAO_CONFIRMADA:'Rejeição fechada · aguardar gatilho',AGUARDAR_RETESTE:'Rompimento · aguardar reteste',RETESTE_EM_FORMACAO:'Reteste em formação',RETESTE_CONFIRMADO:'Reteste sustentado · aguardar gatilho',GATILHO_CONFIRMADO:'Gatilho confirmado · experimental',INVALIDADO:'Padrão invalidado',EXPIRADO:'Padrão expirado'};
  box.replaceChildren();
  for(const b of candleFlowState?.candles||[]){
   const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;padding:6px 0';
@@ -433,7 +433,7 @@ function renderCandleFlow(){
   title.textContent=b.timeframe_seconds/60+' min · delta '+fmt(b.delta)+' · '+(b.warming_up?'coletando contexto':'em formação');title.className=b.delta>0?'up':b.delta<0?'down':'neutral';
   values.textContent='A '+fmt(b.open,2)+'  Máx '+fmt(b.high,2)+'  Mín '+fmt(b.low,2)+'  Atual '+fmt(b.close,2);
   quality.textContent='Volume '+fmt(b.volume)+' · classificado '+Math.round(b.classified_fraction*100)+'% · BBO '+Math.round(b.bbo_fraction*100)+'%';
-  const blockers={WARMUP:'Coletando 3 candles completos',CONTEXT_GAPS:'Contexto com lacunas nos negócios',CONTEXT_CLASSIFICATION:'Contexto exige ≥80% classificados e >57% BBO',CURRENT_GAPS:'Candle atual com lacunas',SAMPLE_TOO_SHORT:'Amostra de absorção curta',BASELINE_TOO_SHORT:'Coletando referência de volume',LOW_VOLUME:'Volume menor que 40',SAMPLE_CLASSIFICATION:'Amostra exige ≥80% classificados e >57% BBO',LOW_DOMINANCE:'Agressão precisa superar 57%',LOW_ACTIVITY:'Atividade abaixo de 1,3× a referência',PRICE_NOT_STALLED:'Preço ainda deslocando; sem absorção',AWAY_FROM_LEVEL:'Fora do extremo dos 3 candles',NO_ABSORPTION_PATTERN:'Aguardando padrão de absorção'};
+  const blockers={WARMUP:'Coletando 3 candles completos',CONTEXT_GAPS:'Contexto com lacunas nos negócios',CONTEXT_CLASSIFICATION:'Contexto exige ≥80% classificados e >57% BBO',CURRENT_GAPS:'Candle atual com lacunas',SAMPLE_TOO_SHORT:'Amostra de absorção curta',BASELINE_TOO_SHORT:'Coletando referência de volume',LOW_VOLUME:'Volume insuficiente',SAMPLE_CLASSIFICATION:'Amostra exige ≥80% classificados e >57% BBO',LOW_DOMINANCE:'Agressão precisa atingir 54%',LOW_ACTIVITY:'Atividade abaixo de 1,3× a referência',PRICE_NOT_STALLED:'Preço ainda deslocando; sem absorção',AWAY_FROM_LEVEL:'Fora do extremo dos 3 candles',NO_REJECTION:'Aguardando deslocamento e pavio de rejeição',NO_ABSORPTION_PATTERN:'Aguardando padrão de absorção'};
   const blocker=blockers[b.formation_blocker];
   if(blocker)quality.textContent+=' · '+blocker;
   values.style.display='block';quality.style.display='block';text.append(title,values,quality);row.append(svg,text);box.append(row);
@@ -442,7 +442,7 @@ function renderCandleFlow(){
  const events=candleFlowEvents.slice().sort((a,b)=>b.timestamp-a.timestamp);
  const active=events.find(e=>!['INVALIDADO','EXPIRADO'].includes(e.stage)&&Date.now()-e.timestamp<e.timeframe_seconds*3000);
  const latest=active||events[0];
- let message=!fresh?'Sem leitura atualizada · gatilhos bloqueados':latest?(labels[latest.stage]||latest.stage)+' · '+(latest.side==='buy'?'COMPRA':'VENDA')+' · '+latest.timeframe_seconds/60+' min':(candleFlowState?.candles?.some(b=>b.formation_blocker==='CONTEXT_CLASSIFICATION'||b.formation_blocker==='SAMPLE_CLASSIFICATION')?'Classificação insuficiente · entradas bloqueadas':candleFlowState?.candles?.some(b=>b.warming_up)?'Coletando 3 candles · aguardar contexto':'Sem padrão de entrada confirmado');
+ let message=!fresh?'Sem leitura atualizada · gatilhos bloqueados':latest?(labels[latest.stage]||latest.stage)+' · '+(latest.side==='buy'?'COMPRA':'VENDA')+' · '+latest.timeframe_seconds/60+' min':(candleFlowState?.candles?.some(b=>b.formation_blocker==='CONTEXT_CLASSIFICATION'||b.formation_blocker==='SAMPLE_CLASSIFICATION')?'Classificação insuficiente · entradas bloqueadas':candleFlowState?.candles?.some(b=>b.warming_up)?'Acompanhar formação 2m · 5m coletando contexto':'Sem padrão de entrada confirmado');
  if(fresh&&latest?.stage==='GATILHO_CONFIRMADO'&&Date.now()-latest.timestamp>10000)message='Gatilho já ocorrido · acompanhar invalidação';
  if(fresh&&latest&&Date.now()-latest.timestamp>=latest.timeframe_seconds*3000)message='Padrão antigo · aguardar nova formação';
  detail.textContent=message;
@@ -565,16 +565,16 @@ function updateFocusDashboard(){
  const earlySec=early.length>=2?Math.max(1,(early[early.length-1].timestamp-early[0].timestamp)/1000):0;
  const lateSec=late.length>=2?Math.max(1,(late[late.length-1].timestamp-late[0].timestamp)/1000):0;
  const accel=early.length>=5&&late.length>=5&&earlySec>=5&&lateSec>=5?((signed(late)/lateSec)-(signed(early)/earlySec)):null;
- put('radarAcceleration',recentShare===null||recent30.length<5?'SEM BASE':(recentShare>=57?'↑ ':recentShare<=43?'↓ ':'↔ ')+recentShare+'%');
+ put('radarAcceleration',recentShare===null||recent30.length<5?'SEM BASE':(recentShare>=54?'↑ ':recentShare<=46?'↓ ':'↔ ')+recentShare+'%');
  if($('radarAcceleration')){
    const pressure=$('radarAcceleration');
    pressure.classList.add('metric-outline');
    pressure.classList.remove('metric-positive','metric-negative','metric-neutral');
-   pressure.classList.add(recentShare===null||recent30.length<5?'metric-neutral':recentShare>=57?'metric-positive':recentShare<=43?'metric-negative':'metric-neutral');
+   pressure.classList.add(recentShare===null||recent30.length<5?'metric-neutral':recentShare>=54?'metric-positive':recentShare<=46?'metric-negative':'metric-neutral');
  }
- const qualified=first.count>=3&&second.count>=3&&first.total>=8&&second.total>=8&&first.side&&first.side===second.side&&first.share>=.57&&second.share>=.57;
+ const qualified=first.count>=3&&second.count>=3&&first.total>=8&&second.total>=8&&first.side&&first.side===second.side&&first.share>=.54&&second.share>=.54;
  const recentMove=recent30.length>=2?recent30[recent30.length-1].price-recent30[0].price:null;
- const stall=recent30.length>=12&&recentTotal>=40&&recentMove!==null&&Math.abs(recentMove)<=config[symbol()].tick*3&&Math.abs(signed(recent30))/Math.max(1,recentTotal)>=.57;
+ const stall=recent30.length>=12&&recentTotal>=40&&recentMove!==null&&Math.abs(recentMove)<=config[symbol()].tick*3&&Math.abs(signed(recent30))/Math.max(1,recentTotal)>=.08;
  let explanation='Coletando fluxo suficiente para análise';
  if(qualified)explanation='Duas ondas de agressão '+(first.side==='buy'?'compradora':'vendedora')+' detectadas · pesquisa';
  else if(stall)explanation='Possível absorção: agressão sem deslocamento · não confirmada';
@@ -613,7 +613,7 @@ function updateFocusDashboard(){
  if(pressure5){
    pressure5.classList.add('metric-outline');
    pressure5.classList.remove('metric-positive','metric-negative','metric-neutral');
-   pressure5.classList.add(recentShare===null||recent30.length<5?'metric-neutral':recentShare>=57?'metric-positive':recentShare<=43?'metric-negative':'metric-neutral');
+   pressure5.classList.add(recentShare===null||recent30.length<5?'metric-neutral':recentShare>=54?'metric-positive':recentShare<=46?'metric-negative':'metric-neutral');
  }
  const price5m=trades5m.length>=2?trades5m[trades5m.length-1].price-trades5m[0].price:null;
  put('radarPriceMove5m',price5m==null?'—':(price5m>0?'+':'')+fmt(price5m,2)+' pt');
@@ -629,14 +629,14 @@ function updateFocusDashboard(){
  updateSparkGauge('sparkRadar5m',buy5m,volume5m-buy5m,sparkAvailable);
 
  const sample5m=trades5m.length>=12&&volume5m>=40;
- put('focusBias5m',!sample5m?'AMOSTRA INSUFICIENTE':share5m>=53?'COMPRADORES':share5m<=47?'VENDEDORES':'EQUILÍBRIO');
- put('radarInterpretation5m',!sample5m?'Coletando fluxo suficiente para análise':share5m>=53?'Contexto de 5 min · predominância compradora · entrada não confirmada':share5m<=47?'Contexto de 5 min · predominância vendedora · entrada não confirmada':'Contexto de 5 min · equilíbrio entre compradores e vendedores');
+ put('focusBias5m',!sample5m?'AMOSTRA INSUFICIENTE':share5m>=54?'COMPRADORES':share5m<=46?'VENDEDORES':'EQUILÍBRIO');
+ put('radarInterpretation5m',!sample5m?'Coletando fluxo suficiente para análise':share5m>=54?'Contexto de 5 min · predominância compradora · entrada não confirmada':share5m<=46?'Contexto de 5 min · predominância vendedora · entrada não confirmada':'Contexto de 5 min · equilíbrio entre compradores e vendedores');
  const status=value('signal'),up=/COMPRA|ALTA/i.test(status),down=/VENDA|BAIXA/i.test(status);
  const blocked=/BLOQUEAD|SEM ENTRADA|AGUARD|PARADO/i.test(status)||!/Recebendo|DEMO|CSV/i.test(value('healthWin'));
  const active=!blocked&&(up||down);
  // Direction is observational; entry confirmation remains separate.
  const directionDataOK=windowTrades.length>=12&&recentVolume>=40;
- const directionSide=qualified?first.side:directionDataOK?(pct>=57?'buy':pct<=43?'sell':null):null;
+ const directionSide=qualified?first.side:directionDataOK?(pct>=54?'buy':pct<=46?'sell':null):null;
  const directionStrong=Boolean(qualified);
  const directionLabel=directionSide?(directionStrong?(directionSide==='buy'?'COMPRADORA':'VENDEDORA'):(directionSide==='buy'?'VIÉS COMPRADOR':'VIÉS VENDEDOR')):'NEUTRO';
  put('focusDirection',directionSide?(directionSide==='buy'?'↑':'↓'):'↔');
@@ -647,7 +647,7 @@ function updateFocusDashboard(){
    const el=$(id);
    if(el){el.classList.remove('is-up','is-down','is-neutral');el.classList.add(directionTone)}
  }
- put('focusBias',recentVolume<40||windowTrades.length<12?'AMOSTRA INSUFICIENTE':pct>=57?'COMPRADORES':pct<=43?'VENDEDORES':'EQUILÍBRIO');
+ put('focusBias',recentVolume<40||windowTrades.length<12?'AMOSTRA INSUFICIENTE':pct>=54?'COMPRADORES':pct<=46?'VENDEDORES':'EQUILÍBRIO');
  const treasury=value('diStatus');
  const treasuryReady=!/ausente|atrasad|inconclus|aguard|antiga|sem direcao|nao confirmad|CONTRADITOR/i.test(treasury)&&/yield proxy em|DIRECAO CONFIRMADA/i.test(treasury);
  // Two-minute ZN price direction is only an inverse yield proxy, not a measured rate.
@@ -695,7 +695,7 @@ function updateFocusDashboard(){
  const downTrend=bars2m.length===4&&bars2m[1].high<bars2m[0].high&&bars2m[2].high<bars2m[1].high&&bars2m[2].low<bars2m[1].low;
  const rebound=downTrend&&bars2m[3].high>bars2m[2].close&&bars2m[3].high<bars2m[1].high;
  const resumeSell=rebound&&price<bars2m[3].close&&price<bars2m[3].high-config[symbol()].tick*4;
- const flowSell=first.side==='sell'&&second.side==='sell'&&first.share>=.57&&second.share>=.57;
+ const flowSell=first.side==='sell'&&second.side==='sell'&&first.share>=.54&&second.share>=.54;
  const pullbackCandidate=resumeSell&&flowSell;
  if(pullbackCandidate&&!active){
    const confirmedByTreasury=false; // Signed Treasury direction is not available to this client-side pattern yet.
@@ -706,14 +706,14 @@ function updateFocusDashboard(){
 
  // Radar signals: 60s overall pressure, 120s trigger, independent 300s confirmation. No order execution.
  const overallBuy=Number.parseFloat(value('focusBuy')),overallSell=Number.parseFloat(value('focusSell'));
- const overallSide=overallBuy>=53?'buy':overallSell>=53?'sell':null;
- const twoSide=pct!==null&&pct>=53?'buy':pct!==null&&100-pct>=53?'sell':null;
+ const overallSide=overallBuy>=54?'buy':overallSell>=54?'sell':null;
+ const twoSide=pct!==null&&pct>=54?'buy':pct!==null&&100-pct>=54?'sell':null;
  const wave2OK=first.count>=3&&second.count>=3&&first.total>=8&&second.total>=8&&first.side&&first.side===second.side;
  const radar2Side=wave2OK&&overallSide===twoSide&&twoSide===first.side&&
    (twoSide==='buy'?delta120>=100:delta120<=-100)?twoSide:null;
  const complete5m=trades5m.length>=12&&trades5m[trades5m.length-1].timestamp-trades5m[0].timestamp>=240000;
  const wave5OK=complete5m&&first5m.count>=3&&second5m.count>=3&&first5m.total>=8&&second5m.total>=8&&first5m.side&&first5m.side===second5m.side;
- const fiveSide=share5m!==null&&share5m>=53?'buy':share5m!==null&&100-share5m>=53?'sell':null;
+ const fiveSide=share5m!==null&&share5m>=54?'buy':share5m!==null&&100-share5m>=54?'sell':null;
  const radar5Side=wave5OK&&fiveSide===first5m.side&&(first5m.side==='buy'?delta5m>0:delta5m<0)?first5m.side:null;
  const radarReady=$('source')?.value!=='ws'||(ws?.readyState===WebSocket.OPEN&&lastIngest>0&&marketIsFresh()&&!/bloquead/i.test(value('healthQuality')));
  const radarSide=radarReady?radar2Side:null;
@@ -729,7 +729,7 @@ function updateFocusDashboard(){
    put('focusDirectionNote',radarPhase==='CONFIRMADO'?'Radares 2m e 5m alinhados; conferir risco e preço':'Pré-alerta de agressão: aguardar confirmação de 5 minutos');
    if(radarAlertsAllowed&&(radarPhase!==radarSignalState||radarSide!==radarSignalSide)&&Date.now()-radarSignalAt>=5000){
      log(radarPhase==='CONFIRMADO'?'RADARES CONFIRMADOS':'POSSÍVEL ENTRADA',sideLabel,0,
-       radarPhase==='CONFIRMADO'?'Pressão geral e radares 2m/5m concordantes; sinal heurístico sem backtest':'Pressão geral e radar 2m ≥53%, duas ondas alinhadas e delta ≥100 em módulo');
+       radarPhase==='CONFIRMADO'?'Pressão geral e radares 2m/5m concordantes; sinal heurístico sem backtest':'Pressão geral e radar 2m ≥54%, duas ondas alinhadas e delta ≥100 em módulo');
      radarSignalAt=Date.now();
    }
  }
@@ -831,4 +831,5 @@ if(typeof MutationObserver!=='undefined'){
 }
 
 })();
+
 

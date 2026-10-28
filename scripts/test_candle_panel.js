@@ -22,7 +22,7 @@ const candle={timeframe_seconds:120,open:100,high:102,low:99,close:101,delta:40,
  volume:100,classified_fraction:.9,bbo_fraction:.8,warming_up:false};
 const state={type:'candle_state',symbol:'MNQZ6',timestamp:now,candles:[candle],setups:[]};
 context.receiveCandleFlow(state);
-assert.match(nodes.candleFlowSetup.textContent,/sem padrão/);
+assert.match(nodes.candleFlowSetup.textContent,/sem padrão/i);
 const signal={type:'candle_signal',symbol:'MNQZ6',timestamp:now,side:'buy',stage:'GATILHO_CONFIRMADO',
  timeframe_seconds:120,model:'ABSORCAO',setup_id:'x',trigger:101,invalidation:99,price:101,delta_5s:30,reason:'teste'};
 context.receiveCandleFlow(signal);
@@ -42,3 +42,4 @@ now+=11000;context.receiveCandleFlow({...state,timestamp:now});
 context.receiveCandleFlow({...signal,setup_id:'new',timestamp:now-11000});
 assert.match(nodes.focusEntry.textContent,/já ocorrido/);
 console.log('Candle panel: stages, contract isolation, deduplication, stale feed and expired trigger passed.');
+

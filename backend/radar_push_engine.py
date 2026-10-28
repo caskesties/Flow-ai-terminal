@@ -43,7 +43,7 @@ class RadarPushEngine:
         if len(rows)<3 or volume<8 or delta==0:return None
         return ("buy" if delta>0 else "sell", (volume+abs(delta))/(2*volume))
     @classmethod
-    def direction(cls,rows,threshold=.53):
+    def direction(cls,rows,threshold=.54):
         vol,delta=cls.metrics(rows)
         if vol<=0:return None
         share=(vol+abs(delta))/(2*vol)
@@ -157,3 +157,4 @@ class RadarPushEngine:
         elif watch:
             self.abs_watch.pop(symbol,None)
         return events
+

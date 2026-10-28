@@ -44,6 +44,38 @@ class CandleFlowTests(unittest.TestCase):
         self.assertEqual(len(self.engine.closed[('NQZ6',300000)]),0)
         self.assertFalse(self.engine.closed[('NQZ6',120000)][0].complete)
 
+    def test_live_rejection_and_flow_flip_without_closed_context(self):
+        for mirror in (False,True):
+            self.setUp()
+            for sec in range(21):
+                px=100+min(sec,10)*.25-max(0,sec-10)*.25
+                side='buy' if sec<15 else 'sell'
+                if mirror: px=200-px;side='sell' if side=='buy' else 'buy'
+                self.trade(sec,px,10,side)
+            stages=[e['stage'] for e in self.events]
+            self.assertIn('EM_FORMACAO',stages)
+            self.assertIn('FLUXO_VIROU',stages)
+            self.assertIn('GATILHO_CONFIRMADO',stages)
+            hit=next(e for e in self.events if e['stage']=='GATILHO_CONFIRMADO')
+            self.assertEqual(hit['side'],'buy' if mirror else 'sell')
+            self.assertEqual(hit['timeframe_seconds'],120)
+            self.assertEqual(len(self.engine.closed[('NQZ6',120000)]),0)
+
+    def test_live_wick_without_flow_flip_has_no_entry(self):
+        for sec in range(21):
+            self.trade(sec,100+min(sec,10)*.25-max(0,sec-10)*.25,10,'buy')
+        self.assertTrue(any(e['stage']=='EM_FORMACAO' for e in self.events))
+        self.assertFalse(any(e['stage']=='GATILHO_CONFIRMADO' for e in self.events))
+
+    def test_live_aggression_boundary_is_inclusive_54_percent(self):
+        for share,expected in ((54,True),(53,False)):
+            self.setUp()
+            for sec in range(14):
+                px=100+min(sec,10)*.25-max(0,sec-10)*.25
+                self.trade(sec,px,share,'buy')
+                self.trade(sec,px,100-share,'sell')
+            self.assertEqual(any(e['stage']=='EM_FORMACAO' for e in self.events),expected)
+
     def test_absorption_to_buy_then_invalidation(self):
         self.absorption()
         self.assertIn('EM_FORMACAO',[e['stage'] for e in self.events])
@@ -151,3 +183,4 @@ class CandleFlowTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
