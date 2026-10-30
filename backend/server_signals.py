@@ -41,26 +41,10 @@ class ServerFlowSignals:
         if directional/total<.60 or ratio<1.8:return None
         move=item["price"]-recent[0]["price"]
         if not ((direction=="buy" and move>0) or (direction=="sell" and move<0)):return None
-        treasury_status="not_applicable"
-        if sym.startswith(("NQ","MNQ")):
-            if len(self.treasury)<2 or abs(ts-self.treasury[-1][0])>10000:return None
-            newest=self.treasury[-1]
-            if newest[2]!="ZN":return None
-            # Require coherent movement in 5s/10s; 2s is diagnostic only.
-            decisions=[]
-            for window_ms in (5000,10000):
-                candidates=[x for x in self.treasury if x[2]=="ZN" and x[0]<newest[0] and window_ms*.75<=newest[0]-x[0]<=window_ms*1.25]
-                older=min(candidates,key=lambda x:abs(newest[0]-x[0]-window_ms)) if candidates else None
-                if older is None:continue
-                change=newest[1]-older[1]
-                if abs(change)>=.015625:decisions.append(1 if change>0 else -1)
-            if not decisions or len(set(decisions))>1:return None
-            if (direction=="buy" and decisions[0]<=0) or (direction=="sell" and decisions[0]>=0):return None
-            treasury_status="ZN_price_proxy"
         key=(sym,direction)
         if ts-self.last_alert.get(key,0)<30000:return None
         self.last_alert[key]=ts
-        event=dict(type="server_signal",stage="PRESSAO_EXPERIMENTAL",symbol=sym,timestamp=ts,side=direction,price=item["price"],ratio=round(ratio,2),directional_share=round(directional/total,3),treasury=treasury_status,source="server_live",reason="Agressao e deslocamento alinhados; sinal experimental, sem ordem automatica")
+        event=dict(type="server_signal",stage="PRESSAO_EXPERIMENTAL",symbol=sym,timestamp=ts,side=direction,price=item["price"],ratio=round(ratio,2),directional_share=round(directional/total,3),context="equity_basket_separate",source="server_live",reason="Agressao e deslocamento alinhados; sinal experimental, sem ordem automatica")
         self.alerts[sym].append(event)
         self.pending[sym].append({"event":event,"high":item["price"],"low":item["price"],"last_ts":ts,"completed":set()})
         return event

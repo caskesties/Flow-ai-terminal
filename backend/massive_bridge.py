@@ -17,6 +17,7 @@ from absorption_research import AbsorptionResearch
 from radar_push_engine import RadarPushEngine
 from candle_flow import CandleFlowEngine, push_payload as candle_push_payload
 import push_alerts
+from equity_basket import EquityBasket
 
 MAX_CLIENT_QUEUE=1000
 TRANSPORT_VERSION="spark-auth-20261026"
@@ -49,8 +50,8 @@ async def main():
     clients=set()
     replay=defaultdict(lambda:deque(maxlen=40000))
     relayed=0
-    latest_treasury=None
-    treasury_replay=deque(maxlen=12000)
+    basket=EquityBasket(json.loads(os.environ["FLOW_EQUITY_WEIGHTS"]) if os.getenv("FLOW_EQUITY_WEIGHTS") else None,
+        os.getenv("FLOW_EQUITY_WEIGHTS_ASOF","2026-10-29"))
     feed_health={"last_market_event_ms":0,"last_classified_ms":0,"provider_connected":False}
     contract_health=defaultdict(lambda:{"quote_ms":0,"trade_ms":0,"classified_ms":0,"received_ms":0,"lag_ms":None})
     close_tasks=set()
@@ -78,6 +79,8 @@ async def main():
                     "server_timestamp":now}
                 if q.full():disconnect_slow(client,contract,q)
                 else:q.put_nowait(event)
+                if contract.startswith(("NQ","MNQ")) and not q.full():
+                    q.put_nowait(basket.snapshot(now))
     async def browser(ws):
         # Token is sent in initial auth message, not in URL/query logs.
         try:
@@ -120,9 +123,7 @@ async def main():
             await ws.send(json.dumps({"type":"replay_complete","count":len(snapshot)}))
             await ws.send(json.dumps(candle_engine.snapshot(requested)))
             if requested.startswith(("MNQ","NQ")):
-                treasury_snapshot=[x for x in treasury_replay if 0<=now_ms-x["timestamp"]<=180000]
-                for offset in range(0,len(treasury_snapshot),150):
-                    await ws.send(json.dumps({"type":"treasury_replay_batch","ticks":treasury_snapshot[offset:offset+150]}))
+                await ws.send(json.dumps(basket.snapshot(now_ms)))
             for alert in signal_engine.recent_alerts(requested):
                 if event_in_session(alert["timestamp"]):
                     await ws.send(json.dumps(alert))
@@ -146,8 +147,39 @@ async def main():
         except (asyncio.TimeoutError,ValueError,KeyError):await ws.close(code=1008,reason="Invalid authorization")
         except websockets.exceptions.ConnectionClosed:
             print("Flow browser disconnected",flush=True)
+    async def equities_provider():
+        retry=15
+        while True:
+            try:
+                basket.status="CONNECTING"
+                async with websockets.connect("wss://socket.massive.com/stocks",ping_interval=20,max_size=4_000_000) as stock_ws:
+                    await stock_ws.send(json.dumps({"action":"auth","params":os.getenv("MASSIVE_STOCKS_API_KEY",api_key)}))
+                    async for raw in stock_ws:
+                        data=json.loads(raw)
+                        for msg in data if isinstance(data,list) else [data]:
+                            await asyncio.sleep(0)
+                            if msg.get("ev")=="status":
+                                status=msg.get("status")
+                                if status=="auth_success":
+                                    basket.connected=True
+                                    basket.status="WAITING_FOR_QUOTES"
+                                    await stock_ws.send(json.dumps({"action":"subscribe","params":",".join("Q."+s for s in basket.weights)}))
+                                elif status in ("auth_failed","not_authorized","error","max_connections"):
+                                    basket.status="ACCESS_UNAVAILABLE"
+                                    raise RuntimeError("Stock stream unavailable")
+                            elif basket.connected and basket.on_quote(msg,int(time.time()*1000)):
+                                basket.status="RECEIVING"
+                                retry=15
+            except (OSError,websockets.exceptions.WebSocketException,RuntimeError,ValueError):
+                basket.status="ACCESS_OR_CONNECTION_UNAVAILABLE"
+                print("Equity context unavailable; futures feed continues independently",flush=True)
+            finally:
+                basket.connected=False
+            await asyncio.sleep(retry)
+            retry=min(retry*2,120)
+
     async def provider():
-        nonlocal last_report,latest_treasury
+        nonlocal last_report
         retry=15
         connection_limited=False
         while True:
@@ -168,7 +200,7 @@ async def main():
                                     print("Massive authentication OK",flush=True)
                                     authorized=True
                                     feed_health["provider_connected"]=True
-                                    channels=",".join(kind+"."+sym for sym in dict.fromkeys([*symbols,"ZNZ6"]) for kind in ("T","Q"))
+                                    channels=",".join(kind+"."+sym for sym in dict.fromkeys(symbols) for kind in ("T","Q"))
                                     print("Massive subscribing: "+channels,flush=True)
                                     await ws.send(json.dumps({"action":"subscribe","params":channels}))
                                 if msg.get("status")=="auth_failed":raise RuntimeError("Massive authorization failed")
@@ -192,29 +224,6 @@ async def main():
                                 except (KeyError,TypeError,ValueError):pass
                                 counts[msg["ev"]]+=1
                                 counts[msg["ev"]+"."+str(msg.get("sym","unknown"))]+=1
-                            if msg.get("ev")=="T" and str(msg.get("sym","")).startswith("ZN"):
-                                try:
-                                    zn_price=float(msg["p"]);zn_time=int(msg["t"])
-                                    if zn_price>0:
-                                        zn_event={"symbol":"ZN","timestamp":zn_time,"price":zn_price,"contract":str(msg["sym"]),"source":"ZN futures last trade"}
-                                        signal_engine.on_treasury(zn_time,zn_price,"ZN")
-                                        latest_treasury=zn_event
-                                        treasury_replay.append(zn_event)
-                                        for _,contract,q in tuple(clients):
-                                            if contract.startswith(("MNQ","NQ")) and not q.full():q.put_nowait(zn_event)
-                                except (KeyError,TypeError,ValueError):pass
-                            if msg.get("ev")=="Q" and str(msg.get("sym","")).startswith("ZN"):
-                                try:
-                                    bid=float(msg["bp"]);ask=float(msg["ap"])
-                                    zn_ts=int(max(msg.get("bt",0),msg.get("at",0)) or msg["t"])
-                                    if bid>0 and ask>bid and zn_ts>0:
-                                        zn_quote={"symbol":"ZN","contract":str(msg["sym"]),"timestamp":zn_ts,"price":(bid+ask)/2,"source":"BBO midpoint (derived, not yield)"}
-                                        signal_engine.on_treasury(zn_ts,(bid+ask)/2,"ZN")
-                                        latest_treasury=zn_quote
-                                        treasury_replay.append(zn_quote)
-                                        for _,contract,q in tuple(clients):
-                                            if contract.startswith(("MNQ","NQ")) and not q.full():q.put_nowait(zn_quote)
-                                except (KeyError,TypeError,ValueError):pass
                             item=classifier.process(msg)
                             # Model C forms true tick-derived OHLC from all prints,
                             # even when aggression cannot be classified.
@@ -254,7 +263,7 @@ async def main():
                                 absorption_observation=absorption_research.on_trade(item)
                                 if absorption_observation:
                                     print('Independent absorption research: %s %s share=%s range_ticks=%s' % (item['symbol'],absorption_observation['side'],absorption_observation['aggressor_share'],absorption_observation['local_range_ticks']),flush=True)
-                                wave_events=wave_research.on_trade(item,treasury_fresh=bool(latest_treasury and abs(item['timestamp']-latest_treasury['timestamp'])<=10000))
+                                wave_events=wave_research.on_trade(item,treasury_fresh=False)
                                 for research_event in wave_events:
                                     if research_event['type']=='wave_research':
                                         print('Wave research: %s %s short=%s prev2m=%s valid2m=%s share=%s status=%s blockers=%s' % (research_event['symbol'],research_event['side'],research_event['short_breakout'],research_event['previous_2m_breakout'],research_event['previous_2m_valid'],','.join(str(w['share']) for w in research_event['waves']),research_event['status'],','.join(research_event['blockers'])),flush=True)
@@ -330,7 +339,10 @@ async def main():
     async with websockets.serve(browser,"0.0.0.0",int(os.getenv("FLOW_BRIDGE_PORT","8765")),max_size=10000,ping_interval=60,ping_timeout=60):
         print("Private Flow bridge running on port %s; TLS reverse proxy required" % os.getenv("FLOW_BRIDGE_PORT","8765"),flush=True)
         watchdog=asyncio.create_task(health_loop())
+        equities=asyncio.create_task(equities_provider())
         try:await provider()
-        finally:watchdog.cancel()
+        finally:
+            watchdog.cancel();equities.cancel()
+            await asyncio.gather(watchdog,equities,return_exceptions=True)
 if __name__=="__main__":asyncio.run(main())
 

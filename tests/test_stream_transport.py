@@ -19,15 +19,17 @@ import websockets
 class TransportTest(unittest.IsolatedAsyncioTestCase):
     async def test_health_is_contract_specific_and_delivery_continues(self):
         events = asyncio.Queue()
+        stock_events = asyncio.Queue()
         real_connect = websockets.connect
         class Provider:
+            def __init__(self, queue): self.queue=queue
             async def __aenter__(self): return self
             async def __aexit__(self, *args): return False
             async def send(self, value): pass
             def __aiter__(self): return self
-            async def __anext__(self): return json.dumps(await events.get())
+            async def __anext__(self): return json.dumps(await self.queue.get())
         def connect(uri, **kwargs):
-            return Provider() if 'socket.massive.com' in uri else real_connect(uri, **kwargs)
+            return Provider(stock_events if uri.endswith('/stocks') else events) if 'socket.massive.com' in uri else real_connect(uri, **kwargs)
         with socket.socket() as sock:
             sock.bind(('127.0.0.1', 0)); port = sock.getsockname()[1]
         env = {'MASSIVE_API_KEY': 'synthetic', 'FLOW_BRIDGE_TOKEN': 't'*24,
@@ -50,6 +52,7 @@ class TransportTest(unittest.IsolatedAsyncioTestCase):
                     await ws.send(json.dumps({'token': 't'*24, 'symbol': 'MNQZ6'}))
                     self.assertEqual(json.loads(await ws.recv())['transport_version'], bridge.TRANSPORT_VERSION)
                     await events.put({'ev':'status','status':'auth_success'})
+                    await stock_events.put({'ev':'status','status':'auth_failed'})
                     async def health():
                         while True:
                             frame = json.loads(await asyncio.wait_for(ws.recv(), 3))

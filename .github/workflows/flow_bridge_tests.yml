@@ -18,7 +18,7 @@ jobs:
       - name: Compile backend
         run: python -m compileall -q backend
       - name: Run BBO flow classification tests
-        run: cd backend && python -m unittest -v test_flow_classifier.py test_server_signals.py test_post_signal_monitor.py
+        run: cd backend && python -m unittest -v test_flow_classifier.py test_server_signals.py test_post_signal_monitor.py test_equity_basket.py
 
       - name: Run candle formation and staged strategy regressions
         run: cd backend && python -m unittest -v test_candle_flow.py test_push_schedule.py

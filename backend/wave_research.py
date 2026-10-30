@@ -46,7 +46,6 @@ class WaveResearch:
         self.last_emit[key]=ts
         reasons=[]
         if not (breakout or breakout_2m):reasons.append("NO_SHORT_OR_PREV_2M_BREAKOUT")
-        if sym.startswith(("NQ","MNQ")) and not treasury_fresh:reasons.append("TREASURY_NOT_FRESH")
         event={"type":"wave_research","symbol":sym,"timestamp":ts,"side":"buy" if direction>0 else "sell",
           "price":item["price"],"waves":[{"buy":b,"sell":s,"trades":n,"share":round((b if direction>0 else s)/v,3)} for b,s,v,n in result],
           "short_breakout":breakout,"previous_2m_breakout":breakout_2m,

@@ -27,3 +27,10 @@ Atenção: o navegador recebe o `FLOW_BRIDGE_TOKEN` para se autenticar; não o c
 7. Só então trocar a produção. Não rodar dois bridges Massive em paralelo se a conta limitar conexões.
 
 O backend atual ainda é experimental e não executa ordens. Os alertas não são garantia de sinal de mercado nem de rentabilidade.
+
+## Six-stock context (2026-10-30)
+Treasury ZN subscription and Nasdaq Treasury gates removed. The server opens one separate Massive **real-time stocks** socket for Q.NVDA,Q.AAPL,Q.MSFT,Q.MU,Q.AMZN,Q.AMD. It uses NBBO midpoints consistently; no trade/quote mixing. Default key: MASSIVE_API_KEY; optional separate server secret MASSIVE_STOCKS_API_KEY. Stocks real-time quote entitlement must be enabled; futures entitlement alone is insufficient. No delayed endpoint fallback.
+
+Basket returns are normalized by the sum of the six index weights (a basket return, not a forecast or index-point contribution). Defaults use Nasdaq-100 weights as of 2026-10-29. Set FLOW_EQUITY_WEIGHTS to a JSON object containing all six positive weights and FLOW_EQUITY_WEIGHTS_ASOF to its date when refreshing weights. Weights are not fetched automatically.
+
+Windows: trailing 120/300 seconds, all six stocks required, endpoint freshness 10s, baseline tolerance 5s, no gaps over 10s. Same sign in both windows gives ALTA/BAIXA, otherwise MISTO. Snapshot once per second, replayed immediately on reconnect. Quotes must accumulate for five minutes after restart. Missing entitlement, sparse extended-hours data, or disconnected socket produce SEM DADOS, never an inferred neutral direction. Context does not block flow signals; gold keeps its existing flow rules. Validate authenticated equity_basket messages in production before claiming the new feed is live.
