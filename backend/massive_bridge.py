@@ -149,17 +149,22 @@ async def main():
             print("Flow browser disconnected",flush=True)
     async def equities_provider():
         retry=15
+        stock_key=os.getenv("MASSIVE_STOCKS_API_KEY",api_key)
         while True:
             try:
                 basket.status="CONNECTING"
                 async with websockets.connect("wss://socket.massive.com/stocks",ping_interval=20,max_size=4_000_000) as stock_ws:
-                    await stock_ws.send(json.dumps({"action":"auth","params":os.getenv("MASSIVE_STOCKS_API_KEY",api_key)}))
+                    await stock_ws.send(json.dumps({"action":"auth","params":stock_key}))
                     async for raw in stock_ws:
                         data=json.loads(raw)
                         for msg in data if isinstance(data,list) else [data]:
                             await asyncio.sleep(0)
                             if msg.get("ev")=="status":
                                 status=msg.get("status")
+                                detail=str(msg.get("message", ""))
+                                for secret in (stock_key,api_key,access):
+                                    if secret:detail=detail.replace(secret,"[REDACTED]")
+                                print("Equity provider status: %s %s" % (status,detail[:240]),flush=True)
                                 if status=="auth_success":
                                     basket.connected=True
                                     basket.status="WAITING_FOR_QUOTES"
@@ -170,7 +175,8 @@ async def main():
                             elif basket.connected and basket.on_quote(msg,int(time.time()*1000)):
                                 basket.status="RECEIVING"
                                 retry=15
-            except (OSError,websockets.exceptions.WebSocketException,RuntimeError,ValueError):
+            except (OSError,websockets.exceptions.WebSocketException,RuntimeError,ValueError) as exc:
+                print("Equity connection error: %s" % type(exc).__name__,flush=True)
                 basket.status="ACCESS_OR_CONNECTION_UNAVAILABLE"
                 print("Equity context unavailable; futures feed continues independently",flush=True)
             finally:
